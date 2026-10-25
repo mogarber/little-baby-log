@@ -83,11 +83,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full layout, data model
 
 ## Contributing
 
-Issues and pull requests are welcome. A few things to know:
-
-- Core Data model changes must be **additive only** (new optional or defaulted attributes, never renames or removals). CloudKit schemas can't be changed destructively once deployed to production.
-- Keep the privacy promise: no servers, no accounts, no ads, no analytics, no third-party SDKs that phone home.
-- Add tests to `BabyLogKit` for logic changes.
+Issues and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) first. Contributors sign a short [Contributor License Agreement](CLA.md) once, through a bot comment on their first pull request.
 
 ## Roadmap
 
@@ -109,7 +105,9 @@ Little Baby Log will always be free, with no ads or paid tier. Keeping it on the
 
 ## License
 
-Little Baby Log is licensed under the [GNU General Public License v3.0](LICENSE). In short, you are free to use, study, modify, and share it, but if you distribute a modified version (including on the App Store), you must release your source under the same license.
+Little Baby Log is licensed under the [GNU General Public License v3.0](LICENSE), with an [additional permission](APP_STORE_EXCEPTION.md) that allows distribution through app stores such as the Apple App Store.
+
+In short, you are free to use, study, modify, and share it. If you distribute a modified version, including through an app store, you must publish your source under the same terms. The app store permission exists because the App Store's terms conflict with the plain GPL; it lets the app, and forks of it, ship there as long as the source stays public.
 
 ## Disclaimer
 
