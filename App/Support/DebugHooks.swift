@@ -9,6 +9,9 @@ import BabyLogKit
 /// - `-lblResetLiveActivities`: at launch, end every Live Activity and forget what was started / dismissed.
 /// - `-lblInsertTimerInBackground sleep|breastfeed`: once the app has gone to the background, insert a running
 ///   timer for the first baby from a background context, as if a partner's timer had just synced in.
+/// - `-lblInitializeCloudKitSchema`: create every record type and field in the CloudKit Development
+///   environment (CloudKit only creates fields for values it has seen), so the schema can be deployed to
+///   Production before a TestFlight or App Store build. Run on a device signed in to iCloud.
 @MainActor
 enum DebugHooks {
     private static let log = Logger(subsystem: "app.littlebabylog", category: "debug")
@@ -16,6 +19,20 @@ enum DebugHooks {
 
     static func prepare() async {
         let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-lblInitializeCloudKitSchema"),
+           let container = PersistenceController.shared.cloudKitContainer {
+            let log = Self.log
+            Task.detached(priority: .utility) {
+                do {
+                    try container.initializeCloudKitSchema(options: [])
+                    log.notice("debug: CloudKit schema initialized")
+                    print("LBL: CloudKit schema initialized")
+                } catch {
+                    log.error("debug: CloudKit schema initialization failed: \(error.localizedDescription, privacy: .public)")
+                    print("LBL: CloudKit schema initialization failed: \(error)")
+                }
+            }
+        }
         if arguments.contains("-lblResetLiveActivities") {
             await LiveActivityManager.shared.debugReset()
             log.notice("debug: reset Live Activities")
