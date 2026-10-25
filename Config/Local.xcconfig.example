@@ -5,13 +5,19 @@
 // Your 10-character Apple Developer Team ID (developer.apple.com > Membership).
 DEVELOPMENT_TEAM = ABCDE12345
 
-// A reverse-DNS prefix you own. The app bundle id becomes $(BUNDLE_ID_PREFIX).littlebabylog,
-// which must be unique across the App Store, so don't use org.littlebabylog.
+// A reverse-DNS prefix you own. The app bundle id becomes $(BUNDLE_ID_PREFIX).littlebabylog
+// (the widget extension's is $(BUNDLE_ID_PREFIX).littlebabylog.widgets), which must be unique
+// across the App Store, so don't use org.littlebabylog.
 BUNDLE_ID_PREFIX = com.yourname
 
 // The CloudKit container. Xcode can register it for you under
 // Signing & Capabilities > iCloud, or create it at developer.apple.com.
 CLOUDKIT_CONTAINER = iCloud.$(BUNDLE_ID_PREFIX).littlebabylog
 
-// Turns on the iCloud + push entitlements.
-CODE_SIGN_ENTITLEMENTS = Config/LittleBabyLog.entitlements
+// Turns on the iCloud + push entitlements (plus the App Group, which is always on).
+CODE_SIGN_ENTITLEMENTS = Config/LittleBabyLog-iCloud.entitlements
+
+// The App Group is derived from BUNDLE_ID_PREFIX (group.$(BUNDLE_ID_PREFIX).littlebabylog) and has
+// to be registered for your team too. Xcode does that for you under Signing & Capabilities >
+// App Groups, or create it at developer.apple.com > Identifiers > App Groups. Uncomment to rename it:
+// APP_GROUP_ID = group.com.yourname.littlebabylog

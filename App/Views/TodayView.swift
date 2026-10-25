@@ -5,6 +5,7 @@ import BabyLogKit
 struct TodayView: View {
     @ObservedObject var baby: Baby
     let day: Date
+    @Binding var link: DeepLink?
 
     @Environment(\.managedObjectContext) private var context
     @FetchRequest private var running: FetchedResults<LogEvent>
@@ -14,9 +15,10 @@ struct TodayView: View {
     @State private var nursing: NursingSheetItem?
     @State private var feedback = 0
 
-    init(baby: Baby, day: Date) {
+    init(baby: Baby, day: Date, link: Binding<DeepLink?> = .constant(nil)) {
         _baby = ObservedObject(wrappedValue: baby)
         self.day = day
+        _link = link
         _running = FetchRequest(fetchRequest: LogEvent.requestRunning(baby: baby))
         _dayEvents = FetchRequest(fetchRequest: LogEvent.requestOverlapping(baby: baby, from: day))
     }
@@ -108,6 +110,11 @@ struct TodayView: View {
             }
         }
         .sensoryFeedback(.success, trigger: feedback)
+        .onChange(of: link, initial: true) { _, newLink in
+            guard let newLink else { return }
+            link = nil
+            open(newLink)
+        }
         .sheet(item: $editor) { target in
             EventEditorView(baby: baby, target: target)
         }
@@ -117,6 +124,27 @@ struct TodayView: View {
     }
 
     // MARK: Actions
+
+    /// `littlebabylog://` links from widgets: the editor for a kind, or the nursing timer.
+    private func open(_ link: DeepLink) {
+        let present: () -> Void
+        switch link {
+        case .today:
+            return
+        case .nursing, .log(.breastfeed, _):
+            present = { startNursing() }
+        case .log(let kind, _):
+            present = { editor = .new(kind) }
+        }
+        if editor != nil || nursing != nil {
+            // Replace whatever sheet is up; SwiftUI can't swap one sheet for another in a single update.
+            editor = nil
+            nursing = nil
+            DispatchQueue.main.async(execute: present)
+        } else {
+            present()
+        }
+    }
 
     private func quickTap(_ kind: EventKind) {
         switch kind {

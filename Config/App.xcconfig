@@ -2,8 +2,8 @@
 //
 // iCloud (CloudKit sync and caregiver sharing) is OFF by default, so the app
 // builds and runs in the iOS Simulator without a paid Apple Developer account.
-// CLOUDKIT_CONTAINER and CODE_SIGN_ENTITLEMENTS stay empty here; the app then
-// uses a plain local Core Data store.
+// CLOUDKIT_CONTAINER stays empty here and the entitlements file only holds the
+// App Group; the app then uses a plain local Core Data store.
 //
 // To turn iCloud on, copy Config/Local.xcconfig.example to Config/Local.xcconfig
 // (git-ignored), fill it in, and run `xcodegen generate`.
@@ -11,9 +11,18 @@
 BUNDLE_ID_PREFIX = org.littlebabylog.dev
 PRODUCT_BUNDLE_IDENTIFIER = $(BUNDLE_ID_PREFIX).littlebabylog
 
+// The App Group shared by the app and the widget extension (the Core Data store
+// and the widget snapshot live in its container). Always on; it works in the
+// simulator and with a free personal team. Must be registered for your team on
+// a real device, see the README.
+APP_GROUP_ID = group.$(BUNDLE_ID_PREFIX).littlebabylog
+
 // Empty = iCloud disabled.
 CLOUDKIT_CONTAINER =
-CODE_SIGN_ENTITLEMENTS =
+
+// App Group only. Local.xcconfig points this at LittleBabyLog-iCloud.entitlements
+// to add iCloud + push.
+CODE_SIGN_ENTITLEMENTS = Config/LittleBabyLog.entitlements
 
 // Per-developer overrides (team, bundle id prefix, iCloud). Optional file.
 #include? "Local.xcconfig"

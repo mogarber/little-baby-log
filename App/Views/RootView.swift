@@ -7,6 +7,9 @@ struct RootView: View {
     @Environment(\.managedObjectContext) private var context
     @FetchRequest(fetchRequest: Baby.lblAllByCreation()) private var babies: FetchedResults<Baby>
     @AppStorage(Prefs.selectedBabyID) private var selectedBabyID: String = ""
+    /// A `littlebabylog://` link waiting for Today to act on it. Lives here, not in a tab, because
+    /// switching babies rebuilds `MainTabView`.
+    @State private var pendingLink: DeepLink?
 
     private var selectedBaby: Baby? {
         babies.first(where: { $0.uuid?.uuidString == selectedBabyID }) ?? babies.first
@@ -21,7 +24,7 @@ struct RootView: View {
                     Text(error.localizedDescription)
                 }
             } else if let baby = selectedBaby {
-                MainTabView(baby: baby)
+                MainTabView(baby: baby, link: $pendingLink)
                     .id(baby.objectID)
             } else {
                 OnboardingView { name, birthDate in
@@ -30,6 +33,13 @@ struct RootView: View {
                     selectedBabyID = baby.uuid?.uuidString ?? ""
                 }
             }
+        }
+        .onOpenURL { url in
+            guard let link = DeepLink(url: url) else { return }
+            if let id = link.babyID, babies.contains(where: { $0.uuid == id }) {
+                selectedBabyID = id.uuidString
+            }
+            pendingLink = link
         }
     }
 }

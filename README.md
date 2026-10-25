@@ -25,6 +25,7 @@ Baby trackers shouldn't cost a monthly subscription, and they shouldn't know eve
 - **Today dashboard**: time since last feed, sleep, and diaper, plus a daily summary
 - **History** grouped by day, with filters and edits
 - **Trends** charts over 7, 14, or 30 days
+- **Widgets and Live Activities**: Home Screen and Lock Screen widgets with one-tap buttons (start nursing on the next side, sleep or wake up, log a diaper), plus Lock Screen and Dynamic Island timers for running sleep and nursing
 - **Caregiver sharing via iCloud**: invite a partner or grandparent and timers sync live
 - **CSV export** of all your data
 - **Multiple babies**
@@ -39,7 +40,7 @@ xcodegen generate
 open LittleBabyLog.xcodeproj
 ```
 
-Pick an iPhone simulator and run. iCloud is off by default, so the app runs in the simulator with no paid Apple Developer account; data is stored locally.
+Pick an iPhone simulator and run. iCloud is off by default, so the app runs in the simulator with no paid Apple Developer account; data is stored locally. The widgets use an App Group (`group.<BUNDLE_ID_PREFIX>.littlebabylog`), which also works in the simulator without a team. To try them, touch and hold the Home Screen, tap Edit, then Add Widget, and pick Little Baby Log.
 
 The `.xcodeproj` is generated from `project.yml` and is not checked in. Re-run `xcodegen generate` after pulling changes.
 
@@ -51,7 +52,8 @@ CloudKit sync and caregiver sharing need a paid Apple Developer Program account 
 2. Set `DEVELOPMENT_TEAM` to your team ID and `BUNDLE_ID_PREFIX` to a reverse-DNS prefix you own, such as `com.yourname`.
 3. Run `xcodegen generate` again.
 4. Open the project. If Xcode complains under Signing & Capabilities, add or refresh the iCloud capability so the container (`iCloud.<prefix>.littlebabylog`) is registered for your team.
-5. Run on a device signed in to iCloud.
+5. Register the App Group `group.<prefix>.littlebabylog` for your team as well, for both the app and the widget extension (`<prefix>.littlebabylog.widgets`). Xcode does this under Signing & Capabilities > App Groups, or add it at developer.apple.com > Identifiers > App Groups. Without it the widgets can't read the app's data, and the app itself needs it because the Core Data store lives in this group container.
+6. Run on a device signed in to iCloud.
 
 Before releasing to the App Store, deploy the CloudKit schema to **Production** in the [CloudKit Console](https://icloud.developer.apple.com/). Until you do, sync works only in the development environment.
 
@@ -68,6 +70,8 @@ cd Packages/BabyLogKit && ./test.sh
 ## Project structure
 
 - `App/`: the iOS app (SwiftUI)
+- `Widgets/`: the widget extension (Home Screen / Lock Screen widgets, Live Activities)
+- `Shared/`: code compiled into both the app and the widget extension
 - `Packages/BabyLogKit/`: Core Data model, persistence, CloudKit sharing, and logic
 - `Config/`: xcconfig files, entitlements, and Info.plist
 - `scripts/`: helper scripts, such as the app icon generator
@@ -87,8 +91,6 @@ Issues and pull requests are welcome. A few things to know:
 
 Ideas for after v1:
 
-- Live Activities and Lock Screen timers
-- Widgets
 - Reminders ("feed due")
 - Apple Watch app
 - Siri and App Intents

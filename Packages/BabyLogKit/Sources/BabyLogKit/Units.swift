@@ -4,7 +4,7 @@ private func formatNumber(_ value: Double, maxFractionDigits: Int, locale: Local
     value.formatted(.number.precision(.fractionLength(0...maxFractionDigits)).locale(locale))
 }
 
-public enum VolumeUnit: String, CaseIterable, Identifiable, Sendable {
+public enum VolumeUnit: String, CaseIterable, Identifiable, Sendable, Codable {
     case milliliters, ounces
 
     public static let millilitersPerOunce: Double = 29.5735295625

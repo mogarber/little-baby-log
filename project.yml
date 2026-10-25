@@ -21,8 +21,11 @@ targets:
     platform: iOS
     sources:
       - App
+      - Shared
     dependencies:
       - package: BabyLogKit
+      - target: LittleBabyLogWidgets
+        embed: true
     # Bundle id, team, and entitlements come from Config/App.xcconfig (and the
     # git-ignored Config/Local.xcconfig). Do not set them in settings below,
     # target-level settings would override the xcconfig.
@@ -35,6 +38,9 @@ targets:
         CODE_SIGN_STYLE: Automatic
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        # Shared/ compiles into the widget extension too; this flag marks the app-only bodies of the
+        # widget intents (they touch Core Data, which the extension never opens).
+        OTHER_SWIFT_FLAGS: "$(inherited) -D LBL_APP"
     info:
       path: Config/Info.plist
       properties:
@@ -44,9 +50,45 @@ targets:
         UILaunchScreen: {}
         CKSharingSupported: true
         LBLCloudKitContainer: $(CLOUDKIT_CONTAINER)
+        LBLAppGroup: $(APP_GROUP_ID)
+        NSSupportsLiveActivities: true
+        CFBundleURLTypes:
+          - CFBundleURLName: $(PRODUCT_BUNDLE_IDENTIFIER)
+            CFBundleURLSchemes:
+              - littlebabylog
         UIBackgroundModes:
           - remote-notification
         ITSAppUsesNonExemptEncryption: false
+
+  # Home Screen / Lock Screen widgets, widget buttons, and Live Activities. Never opens Core Data:
+  # it reads the JSON snapshot the app writes into the App Group. Bundle id, entitlements, and team come
+  # from Config/Widgets.xcconfig (which builds on App.xcconfig); keep them out of settings below.
+  LittleBabyLogWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - Widgets
+      - Shared
+    dependencies:
+      - package: BabyLogKit
+    configFiles:
+      Debug: Config/Widgets.xcconfig
+      Release: Config/Widgets.xcconfig
+    settings:
+      base:
+        PRODUCT_NAME: LittleBabyLogWidgets
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: true
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    info:
+      path: Config/Widgets-Info.plist
+      properties:
+        CFBundleDisplayName: Little Baby Log
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LBLAppGroup: $(APP_GROUP_ID)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
 schemes:
   LittleBabyLog:

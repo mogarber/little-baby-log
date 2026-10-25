@@ -8,6 +8,10 @@ struct LittleBabyLogApp: App {
 
     private let persistence = PersistenceController.shared
 
+    init() {
+        AppServices.start()
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()

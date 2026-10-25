@@ -1,0 +1,12 @@
+// Build settings for the widget extension (Home Screen / Lock Screen widgets and Live Activities).
+//
+// Starts from the app's settings, so the team, BUNDLE_ID_PREFIX, and APP_GROUP_ID from
+// App.xcconfig and Local.xcconfig apply here too. These come after the include so they win over
+// anything Local.xcconfig sets for the app (notably the iCloud entitlements: the extension never
+// touches CloudKit, it only reads the snapshot file in the App Group).
+
+#include "App.xcconfig"
+
+// An extension's bundle id must be prefixed by its app's: <app id>.widgets.
+PRODUCT_BUNDLE_IDENTIFIER = $(BUNDLE_ID_PREFIX).littlebabylog.widgets
+CODE_SIGN_ENTITLEMENTS = Config/LittleBabyLogWidgets.entitlements

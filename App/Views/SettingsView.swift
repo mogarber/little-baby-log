@@ -35,6 +35,7 @@ struct SettingsView: View {
             babiesSection
             caregiversSection
             unitsSection
+            widgetsSection
             dataSection
             aboutSection
         }
@@ -118,6 +119,27 @@ struct SettingsView: View {
             }
         } header: {
             Text("Units")
+        }
+    }
+
+    private var widgetsSection: some View {
+        Section {
+            Label {
+                Text("Touch and hold an empty spot on the Home Screen, tap Edit, then Add Widget, and choose Little Baby Log. Start nursing or log a diaper without opening the app.")
+            } icon: {
+                Image(systemName: "rectangle.3.group.fill")
+                    .foregroundStyle(Color.accentColor)
+            }
+            Label {
+                Text("For the Lock Screen, touch and hold it, tap Customize, then add a widget under the clock. Running sleep and nursing timers also show up on the Lock Screen and in the Dynamic Island.")
+            } icon: {
+                Image(systemName: "lock.fill")
+                    .foregroundStyle(Color.accentColor)
+            }
+        } header: {
+            Text("Widgets")
+        } footer: {
+            Text("To show a different baby in a widget, touch and hold it and tap Edit Widget.")
         }
     }
 

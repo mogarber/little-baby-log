@@ -1,6 +1,6 @@
 import Foundation
 
-public enum EventKind: String, CaseIterable, Identifiable, Sendable {
+public enum EventKind: String, CaseIterable, Identifiable, Sendable, Codable {
     case sleep, breastfeed, bottle, solids, diaper, pump, growth, medicine
 
     public var id: String { rawValue }
@@ -55,7 +55,7 @@ public enum EventKind: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-public enum BreastSide: String, CaseIterable, Identifiable, Sendable {
+public enum BreastSide: String, CaseIterable, Identifiable, Sendable, Codable {
     case left, right
 
     public var id: String { rawValue }
@@ -77,7 +77,7 @@ public enum BottleContent: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-public enum DiaperKind: String, CaseIterable, Identifiable, Sendable {
+public enum DiaperKind: String, CaseIterable, Identifiable, Sendable, Codable {
     case wet, dirty, mixed, dry
 
     public var id: String { rawValue }
