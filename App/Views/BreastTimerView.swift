@@ -17,6 +17,8 @@ struct BreastTimerView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.managedObjectContext) private var context
+    @Environment(\.appTheme) private var theme
+    @AppStorage(Prefs.keepScreenOnWhileNursing) private var keepScreenOn = false
     @State private var confirmDiscard = false
     @State private var tapCount = 0
 
@@ -33,6 +35,7 @@ struct BreastTimerView: View {
             TimelineView(.periodic(from: .now, by: 0.5)) { timeline in
                 content(now: timeline.date)
             }
+            .themedScreen()
             .navigationTitle("Nursing")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -48,7 +51,9 @@ struct BreastTimerView: View {
         } message: {
             Text("The time you've tracked will be deleted.")
         }
-        .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
+        // Battery: the screen only stays on if the person turned that on in Settings.
+        .onAppear { UIApplication.shared.isIdleTimerDisabled = keepScreenOn }
+        .onChange(of: keepScreenOn) { _, keepOn in UIApplication.shared.isIdleTimerDisabled = keepOn }
         .onDisappear {
             UIApplication.shared.isIdleTimerDisabled = false
             removeIfNeverStarted()
@@ -63,14 +68,14 @@ struct BreastTimerView: View {
             VStack(spacing: 4) {
                 Text("Total")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(theme.secondary)
                 Text(DurationFormat.clock(isGone ? 0 : event.totalBreastSeconds(at: now)))
                     .font(.system(size: 64, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                 if let start = event.startDate, !isGone {
                     Text("Started " + start.formatted(date: .omitted, time: .shortened))
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(theme.secondary)
                 }
             }
             .padding(.top, 8)
@@ -90,10 +95,11 @@ struct BreastTimerView: View {
                         .font(.title3.weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
+                        .themedOnColor()
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
-                .tint(EventKind.breastfeed.color)
+                .tint(theme.color(for: .breastfeed))
 
                 Button(role: .destructive) {
                     confirmDiscard = true
@@ -101,6 +107,7 @@ struct BreastTimerView: View {
                     Text("Discard")
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
+                        .themedDestructive()
                 }
                 .buttonStyle(.borderless)
             }
@@ -128,14 +135,14 @@ struct BreastTimerView: View {
                 nextBadge(visible: showNext, active: active)
             }
             .frame(maxWidth: .infinity, minHeight: 220)
-            .foregroundStyle(active ? Color.white : Color.primary)
+            .foregroundStyle(active ? theme.onColor : theme.primaryText)
             .background(
                 RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(active ? side.color : Color(.secondarySystemBackground))
+                    .fill(active ? theme.color(for: side) : theme.raised)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .strokeBorder(showNext ? side.color : Color.clear, lineWidth: 3)
+                    .strokeBorder(showNext ? theme.color(for: side) : Color.clear, lineWidth: 3)
             )
             .contentShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         }
@@ -152,7 +159,7 @@ struct BreastTimerView: View {
                 .font(.footnote.weight(.bold))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 4)
-                .background(Capsule().fill(Color.primary.opacity(0.12)))
+                .background(Capsule().fill(theme.primaryText.opacity(0.12)))
         } else {
             Text(active ? "Running" : " ")
                 .font(.footnote.weight(.medium))

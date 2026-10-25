@@ -4,6 +4,7 @@ import BabyLogKit
 /// A running sleep or nursing timer with a live clock.
 struct ActiveTimerRow: View {
     @ObservedObject var event: LogEvent
+    @Environment(\.appTheme) private var theme
     let onWake: () -> Void
     let onOpen: () -> Void
 
@@ -16,7 +17,7 @@ struct ActiveTimerRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(isNursing ? "Nursing" : "Sleeping")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(theme.secondary)
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     Text(DurationFormat.clock(elapsed(at: context.date)))
                         .font(.system(size: 34, weight: .semibold, design: .rounded))
@@ -24,7 +25,7 @@ struct ActiveTimerRow: View {
                 }
                 Text(subtitle)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(theme.secondary)
             }
 
             Spacer(minLength: 8)
@@ -39,10 +40,11 @@ struct ActiveTimerRow: View {
                     .frame(minWidth: 72)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 6)
+                    .themedOnColor()
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .tint(event.kind.color)
+            .tint(theme.color(for: event.kind))
         }
         .padding(.vertical, 6)
         .contentShape(Rectangle())

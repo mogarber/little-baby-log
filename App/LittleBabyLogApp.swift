@@ -17,6 +17,7 @@ struct LittleBabyLogApp: App {
             RootView()
                 .environment(\.managedObjectContext, persistence.viewContext)
                 .environment(\.persistence, persistence)
+                .appearanceHost()
         }
     }
 }

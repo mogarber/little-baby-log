@@ -25,6 +25,12 @@ struct SettingsView: View {
     @AppStorage(Prefs.selectedBabyID) private var selectedBabyID: String = ""
     @AppStorage(Prefs.volumeUnit) private var volumeUnit: VolumeUnit = Prefs.defaultVolumeUnit
     @AppStorage(Prefs.unitSystem) private var unitSystem: UnitSystem = Prefs.defaultUnitSystem
+    @AppStorage(Prefs.appearanceMode) private var appearanceMode: AppearanceMode = Prefs.defaultAppearanceMode
+    @AppStorage(Prefs.nightStartMinutes) private var nightStartMinutes = NightSchedule.defaultStartMinutes
+    @AppStorage(Prefs.nightEndMinutes) private var nightEndMinutes = NightSchedule.defaultEndMinutes
+    @AppStorage(Prefs.dimScreenAtNight) private var dimScreenAtNight = false
+    @AppStorage(Prefs.keepScreenOnWhileNursing) private var keepScreenOnWhileNursing = false
+    @Environment(\.appTheme) private var theme
 
     @State private var babySheet: BabySheet?
     @State private var shareItem: ShareItem?
@@ -35,10 +41,13 @@ struct SettingsView: View {
             babiesSection
             caregiversSection
             unitsSection
+            appearanceSection
+            nursingTimerSection
             widgetsSection
             dataSection
             aboutSection
         }
+        .themedList()
         .navigationTitle("Settings")
         .sheet(item: $babySheet) { sheet in
             switch sheet {
@@ -87,6 +96,7 @@ struct SettingsView: View {
         } header: {
             Text("Babies")
         }
+        .themedSection()
     }
 
     private var caregiversSection: some View {
@@ -103,6 +113,7 @@ struct SettingsView: View {
                 Text("This build of the app was made without iCloud turned on, so sharing isn't available. Your data stays on this phone.")
             }
         }
+        .themedSection()
     }
 
     private var unitsSection: some View {
@@ -120,6 +131,57 @@ struct SettingsView: View {
         } header: {
             Text("Units")
         }
+        .themedSection()
+    }
+
+    private var appearanceSection: some View {
+        Section {
+            Picker("Appearance", selection: $appearanceMode) {
+                ForEach(AppearanceMode.allCases) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+
+            if appearanceMode == .nightSchedule {
+                DatePicker("From", selection: minutesBinding($nightStartMinutes), displayedComponents: .hourAndMinute)
+                DatePicker("To", selection: minutesBinding($nightEndMinutes), displayedComponents: .hourAndMinute)
+            }
+
+            if appearanceMode.canShowNight {
+                VStack(alignment: .leading, spacing: 6) {
+                    Toggle("Dim screen at night", isOn: $dimScreenAtNight)
+                    BatteryImpactNote("Lowers the screen brightness while Night is showing, which saves battery.", effect: .saves)
+                }
+                .padding(.vertical, 2)
+            }
+        } header: {
+            Text("Appearance")
+        } footer: {
+            VStack(alignment: .leading, spacing: 6) {
+                if appearanceMode == .nightSchedule {
+                    Text("Night turns on at \(Self.timeString(nightStartMinutes)) and off at \(Self.timeString(nightEndMinutes)). The rest of the time the app follows your phone's Light or Dark setting.")
+                } else if appearanceMode == .night {
+                    Text("Night is a dim, warm, true-black look for feeding in the dark.")
+                }
+                Text("Widgets and Live Activities follow your phone's Light or Dark setting. iOS doesn't let apps change that.")
+            }
+        }
+        .themedSection()
+    }
+
+    private var nursingTimerSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 6) {
+                Toggle("Keep screen on during nursing timer", isOn: $keepScreenOnWhileNursing)
+                BatteryImpactNote("Keeps your screen on while the timer is open, which uses more battery.")
+            }
+            .padding(.vertical, 2)
+        } header: {
+            Text("Nursing timer")
+        }
+        .themedSection()
     }
 
     private var widgetsSection: some View {
@@ -128,19 +190,20 @@ struct SettingsView: View {
                 Text("Touch and hold an empty spot on the Home Screen, tap Edit, then Add Widget, and choose Little Baby Log. Start nursing or log a diaper without opening the app.")
             } icon: {
                 Image(systemName: "rectangle.3.group.fill")
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(theme.accent)
             }
             Label {
                 Text("For the Lock Screen, touch and hold it, tap Customize, then add a widget under the clock. Running sleep and nursing timers also show up on the Lock Screen and in the Dynamic Island.")
             } icon: {
                 Image(systemName: "lock.fill")
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(theme.accent)
             }
         } header: {
             Text("Widgets")
         } footer: {
             Text("To show a different baby in a widget, touch and hold it and tap Edit Widget.")
         }
+        .themedSection()
     }
 
     private var dataSection: some View {
@@ -155,6 +218,7 @@ struct SettingsView: View {
         } footer: {
             Text("A spreadsheet of every entry for every baby.")
         }
+        .themedSection()
     }
 
     private var aboutSection: some View {
@@ -168,6 +232,27 @@ struct SettingsView: View {
         } footer: {
             Text("Little Baby Log is free software, released under the GNU GPL-3.0. No accounts, no ads, no tracking.")
         }
+        .themedSection()
+    }
+
+    // MARK: Times
+
+    /// A time-of-day picker value for a stored "minutes since midnight".
+    private func minutesBinding(_ minutes: Binding<Int>) -> Binding<Date> {
+        Binding(
+            get: {
+                Calendar.current.date(bySettingHour: minutes.wrappedValue / 60, minute: minutes.wrappedValue % 60, second: 0, of: .now) ?? .now
+            },
+            set: { date in
+                let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
+                minutes.wrappedValue = (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
+            }
+        )
+    }
+
+    private static func timeString(_ minutes: Int) -> String {
+        let date = Calendar.current.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: .now) ?? .now
+        return date.formatted(date: .omitted, time: .shortened)
     }
 
     // MARK: Export
@@ -196,17 +281,18 @@ struct SettingsView: View {
 /// A baby's name and age. Observes the baby so renames show up immediately.
 private struct BabyRow: View {
     @ObservedObject var baby: Baby
+    @Environment(\.appTheme) private var theme
 
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(baby.displayName)
                     .font(.headline)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(theme.primary)
                 if let birthDate = baby.birthDate {
                     Text(BabyAge.description(birthDate: birthDate))
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(theme.secondary)
                 }
             }
             Spacer()

@@ -5,12 +5,22 @@ import BabyLogKit
 // MARK: Live clocks
 
 /// Counts up from `reference` without any timeline reloads. The upper bound only needs to be far away.
+///
+/// On a dimmed, Always-On Lock Screen (`isLuminanceReduced`) iOS stops ticking live timers once a second and
+/// draws their seconds as dashes ("1:--"). So in that state this shows the elapsed time in whole minutes instead,
+/// which the system keeps current by itself (`Elapsed`).
 struct LiveClock: View {
+    @Environment(\.isLuminanceReduced) private var isLuminanceReduced
+
     let reference: Date
     var showsHours = true
 
     var body: some View {
-        Text.live(since: reference, showsHours: showsHours)
+        if isLuminanceReduced {
+            Elapsed.since(reference)
+        } else {
+            Text.live(since: reference, showsHours: showsHours)
+        }
     }
 }
 
@@ -74,11 +84,21 @@ struct NursingValues: Equatable {
 
 /// Total nursing time: live while a side runs, frozen when paused.
 struct NursingTotalClock: View {
+    @Environment(\.isLuminanceReduced) private var isLuminanceReduced
+
     let values: NursingValues
-    var body: some View { values.totalText }
+
+    var body: some View {
+        if isLuminanceReduced, let reference = values.totalReference {
+            Elapsed.since(reference)
+        } else {
+            values.totalText
+        }
+    }
 }
 
-/// One side's time: live while that side runs, otherwise the banked time.
+/// One side's time: live while that side runs, otherwise the banked time. Whole minutes while the screen is dimmed
+/// (see `LiveClock`).
 struct NursingSideClock: View {
     let values: NursingValues
     let side: BreastSide
@@ -91,13 +111,20 @@ struct NursingSideClock: View {
     }
 }
 
-/// Time since `date`, kept current by the system (`Text(date, style: .relative)`), so the widget needs no
-/// timeline reloads (and no wake-ups) to stay right.
+/// Time since `date`, kept current by the system, so the widget needs no timeline reloads (and no wake-ups) to
+/// stay right.
+///
+/// iOS 18 and later: a minute-granularity `SystemFormatStyle.DateOffset` ("2 hr, 10 min", "6 min"). The old
+/// `.relative` style counts seconds ("6 min, 40 sec"), which is wordy for a glance, and ticks every second.
+/// iOS 17 falls back to `.relative`.
 enum Elapsed {
     static func since(_ date: Date) -> Text {
-        Text(date, style: .relative)
+        if #available(iOS 18.0, *) {
+            // The input is "now"; the system re-evaluates it as time passes. `date` is the anchor.
+            return Text(Date.now, format: .offset(to: date, allowedFields: [.day, .hour, .minute], maxFieldCount: 2, sign: .never))
+        }
+        return Text(date, style: .relative)
     }
-
 }
 
 /// "2 hr, 10 min" over a small "ago", for headlines that may wrap.

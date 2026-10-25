@@ -7,6 +7,7 @@ struct SinceLastView: View {
     let baby: Baby
 
     @Environment(\.managedObjectContext) private var context
+    @Environment(\.appTheme) private var theme
     @FetchRequest private var running: FetchedResults<LogEvent>
     @FetchRequest private var lastSleep: FetchedResults<LogEvent>
     @FetchRequest private var lastFeed: FetchedResults<LogEvent>
@@ -47,7 +48,7 @@ struct SinceLastView: View {
 
         if sleepLine == nil && feedLine == nil && diaperLine == nil {
             Text("Nothing logged yet. Tap a button below to get started.")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(theme.secondary)
         } else {
             VStack(alignment: .leading, spacing: 14) {
                 if let sleepLine {
@@ -108,6 +109,8 @@ struct SinceLastView: View {
 }
 
 private struct StatLine: View {
+    @Environment(\.appTheme) private var theme
+
     let kind: EventKind
     let title: String
     let value: String
@@ -119,7 +122,7 @@ private struct StatLine: View {
             VStack(alignment: .leading, spacing: 0) {
                 Text(title)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(theme.secondary)
                 Text(value)
                     .font(.system(.title3, design: .rounded).weight(.semibold))
             }
@@ -127,7 +130,7 @@ private struct StatLine: View {
             if let detail {
                 Text(detail)
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(theme.secondary)
             }
         }
         .accessibilityElement(children: .combine)

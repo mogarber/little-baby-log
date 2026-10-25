@@ -25,6 +25,8 @@ Baby trackers shouldn't cost a monthly subscription, and they shouldn't know eve
 - **Today dashboard**: time since last feed, sleep, and diaper, plus a daily summary
 - **History** grouped by day, with filters and edits
 - **Trends** charts over 7, 14, or 30 days
+- **Night mode** for 3 a.m. feeds: a dim, warm, true-black theme (no white), on all the time or on a schedule (7 PM to 7 AM by default), with an optional lower screen brightness
+- **Easy on the battery**: anything that costs battery, like keeping the screen on during the nursing timer, is opt-in and says so
 - **Widgets and Live Activities**: Home Screen and Lock Screen widgets with one-tap buttons (start nursing on the next side, sleep or wake up, log a diaper), plus Lock Screen and Dynamic Island timers for running sleep and nursing
 - **Caregiver sharing via iCloud**: invite a partner or grandparent and timers sync live
 - **CSV export** of all your data

@@ -4,6 +4,7 @@ import BabyLogKit
 /// One line in a timeline: icon, kind, one-line detail, and the time.
 struct EventRow: View {
     @ObservedObject var event: LogEvent
+    @Environment(\.appTheme) private var theme
 
     @AppStorage(Prefs.volumeUnit) private var volumeUnit: VolumeUnit = Prefs.defaultVolumeUnit
     @AppStorage(Prefs.unitSystem) private var unitSystem: UnitSystem = Prefs.defaultUnitSystem
@@ -19,14 +20,14 @@ struct EventRow: View {
                         .font(.headline)
                     Text(detail)
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(theme.secondary)
                         .lineLimit(2)
                 }
                 Spacer(minLength: 8)
                 Text(event.startDate ?? .now, style: .time)
                     .font(.subheadline.weight(.medium))
                     .monospacedDigit()
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(theme.secondary)
             }
             .padding(.vertical, 4)
             .contentShape(Rectangle())

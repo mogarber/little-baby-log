@@ -3,6 +3,8 @@ import BabyLogKit
 
 /// Big one-tap tiles for every kind of entry.
 struct QuickActionsGrid: View {
+    @Environment(\.appTheme) private var theme
+
     let isSleeping: Bool
     let onTap: (EventKind) -> Void
     let onLogPast: (EventKind) -> Void
@@ -56,7 +58,7 @@ struct QuickActionsGrid: View {
                 KindIcon(kind: kind, size: 58)
                 Text(title(for: kind))
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(theme.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }

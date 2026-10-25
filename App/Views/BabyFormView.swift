@@ -50,15 +50,20 @@ struct BabyFormView: View {
                 } footer: {
                     Text("Not born yet? Use the due date and update it later.")
                 }
+                .themedSection()
 
                 if canDelete {
                     Section {
-                        Button("Delete baby and all entries", role: .destructive) {
+                        Button(role: .destructive) {
                             confirmDelete = true
+                        } label: {
+                            Text("Delete baby and all entries").themedDestructive()
                         }
                     }
+                    .themedSection()
                 }
             }
+            .themedList()
             .navigationTitle(baby == nil ? "Add a baby" : "Edit baby")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

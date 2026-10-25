@@ -5,6 +5,7 @@ import BabyLogKit
 
 struct TrendsView: View {
     let baby: Baby
+    @Environment(\.appTheme) private var theme
 
     @State private var days = 7
 
@@ -23,7 +24,8 @@ struct TrendsView: View {
             }
             .padding(16)
         }
-        .background(Color(.systemGroupedBackground))
+        .background(theme.background)
+        .themedForeground()
         .navigationTitle("Trends")
     }
 }
@@ -56,6 +58,7 @@ private struct TrendsContent: View {
 
     @FetchRequest private var events: FetchedResults<LogEvent>
     @FetchRequest private var growth: FetchedResults<LogEvent>
+    @Environment(\.appTheme) private var theme
     @AppStorage(Prefs.volumeUnit) private var volumeUnit: VolumeUnit = Prefs.defaultVolumeUnit
     @AppStorage(Prefs.unitSystem) private var unitSystem: UnitSystem = Prefs.defaultUnitSystem
 
@@ -141,7 +144,7 @@ private struct TrendsContent: View {
             title: "Sleep",
             subtitle: avg > 0 ? "Average " + DurationFormat.short(avg * 3600) + " a day" : "No complete days yet"
         ) {
-            DayBarChart(stats: stats, days: days, color: EventKind.sleep.color, average: avg, unit: "h", minTop: 1) { $0.sleep / 3600 }
+            DayBarChart(stats: stats, days: days, color: theme.color(for: .sleep), average: avg, unit: "h", minTop: 1) { $0.sleep / 3600 }
         }
     }
 
@@ -151,7 +154,7 @@ private struct TrendsContent: View {
             title: "Feeds",
             subtitle: avg > 0 ? "Average " + perDay(avg) : "No complete days yet"
         ) {
-            DayBarChart(stats: stats, days: days, color: EventKind.breastfeed.color, average: avg, unit: "", minTop: 4) { Double($0.feedCount) }
+            DayBarChart(stats: stats, days: days, color: theme.color(for: .breastfeed), average: avg, unit: "", minTop: 4) { Double($0.feedCount) }
         }
     }
 
@@ -178,7 +181,7 @@ private struct TrendsContent: View {
             }
             .chartForegroundStyleScale(
                 domain: ["Wet", "Dirty", "Both"],
-                range: [Color.teal, Color.brown, Color.orange]
+                range: theme.diaperColors
             )
             .chartLegend(position: .bottom, alignment: .leading)
             .modifier(WholeNumberYAxis(scale: YAxisScale(maxValue: busiestDay, minTop: 4)))
@@ -196,7 +199,7 @@ private struct TrendsContent: View {
                 ? "Average " + avg.formatted(.number.precision(.fractionLength(0...1))) + " " + unit.symbol + " a day"
                 : (stats.contains { $0.summary.bottleML > 0 } ? "No complete days yet" : "No bottles in this range")
         ) {
-            DayBarChart(stats: stats, days: days, color: EventKind.bottle.color, average: avg, unit: unit.symbol, minTop: 1) {
+            DayBarChart(stats: stats, days: days, color: theme.color(for: .bottle), average: avg, unit: unit.symbol, minTop: 1) {
                 unit.value(fromMilliliters: $0.bottleML)
             }
         }
@@ -213,7 +216,7 @@ private struct TrendsContent: View {
             if points.isEmpty {
                 Text("Log a growth entry to see your baby's weight over time.")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(theme.secondary)
                     .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
             } else {
                 Chart(points) { point in
@@ -221,12 +224,12 @@ private struct TrendsContent: View {
                         x: .value("Date", point.date),
                         y: .value("Weight", point.value)
                     )
-                    .foregroundStyle(EventKind.growth.color)
+                    .foregroundStyle(theme.color(for: .growth))
                     PointMark(
                         x: .value("Date", point.date),
                         y: .value("Weight", point.value)
                     )
-                    .foregroundStyle(EventKind.growth.color)
+                    .foregroundStyle(theme.color(for: .growth))
                 }
                 .chartYScale(domain: .automatic(includesZero: false))
                 .chartYAxisLabel(symbol)
@@ -239,6 +242,8 @@ private struct TrendsContent: View {
 // MARK: - Building blocks
 
 private struct TrendCard<Content: View>: View {
+    @Environment(\.appTheme) private var theme
+
     let title: String
     let subtitle: String
     @ViewBuilder var content: () -> Content
@@ -250,14 +255,14 @@ private struct TrendCard<Content: View>: View {
                     .font(.headline)
                 Text(subtitle)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(theme.secondary)
             }
             content()
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            Color(.secondarySystemGroupedBackground),
+            theme.surface,
             in: RoundedRectangle(cornerRadius: 16, style: .continuous)
         )
     }
@@ -273,6 +278,8 @@ private struct DayBarChart: View {
     let minTop: Double
     let value: (DaySummary) -> Double
 
+    @Environment(\.appTheme) private var theme
+
     var body: some View {
         let peak = stats.map { value($0.summary) }.max() ?? 0
         Chart {
@@ -286,7 +293,7 @@ private struct DayBarChart: View {
             if average > 0 {
                 RuleMark(y: .value("Average", average))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                    .foregroundStyle(Color.secondary)
+                    .foregroundStyle(theme.isNight ? AppTheme.nightSecondaryText : Color.secondary)
             }
         }
         .chartYAxisLabel(unit)
@@ -312,6 +319,8 @@ private struct YAxisScale {
 }
 
 private struct WholeNumberYAxis: ViewModifier {
+    @Environment(\.appTheme) private var theme
+
     let scale: YAxisScale
 
     func body(content: Content) -> some View {
@@ -319,7 +328,11 @@ private struct WholeNumberYAxis: ViewModifier {
             .chartYScale(domain: 0...scale.top)
             .chartYAxis {
                 AxisMarks(values: .stride(by: scale.step)) { _ in
-                    AxisGridLine()
+                    if theme.isNight {
+                        AxisGridLine().foregroundStyle(AppTheme.nightSeparator)
+                    } else {
+                        AxisGridLine()
+                    }
                     AxisValueLabel(format: FloatingPointFormatStyle<Double>().precision(.fractionLength(0)))
                 }
             }
@@ -327,6 +340,8 @@ private struct WholeNumberYAxis: ViewModifier {
 }
 
 private struct DayAxis: ViewModifier {
+    @Environment(\.appTheme) private var theme
+
     let days: Int
 
     private var strideDays: Int {
@@ -338,7 +353,11 @@ private struct DayAxis: ViewModifier {
     func body(content: Content) -> some View {
         content.chartXAxis {
             AxisMarks(values: .stride(by: .day, count: strideDays)) { _ in
-                AxisGridLine()
+                if theme.isNight {
+                    AxisGridLine().foregroundStyle(AppTheme.nightSeparator)
+                } else {
+                    AxisGridLine()
+                }
                 AxisValueLabel(format: .dateTime.month(.defaultDigits).day())
             }
         }

@@ -25,7 +25,7 @@ App/                            iOS app target (SwiftUI, iOS 17+)
   Views/                        SwiftUI screens
   Resources/Assets.xcassets
 Shared/                         compiled into BOTH the app and the widget extension: AppGroup, BabyEntity +
-                                SelectBabyIntent, action intents, TimerActivityAttributes, EventKind+Style
+                                SelectBabyIntent, action intents, TimerActivityAttributes, EventKind+Style, AppTheme
 Widgets/                        widget extension (WidgetKit + ActivityKit): Feeding, Sleep, Quick Log, Lock Screen,
                                 Live Activity
 Packages/BabyLogKit/            Swift package: model, persistence, logic. Builds on macOS too,
@@ -290,7 +290,10 @@ with `SampleData`. Exposed to views via `@Environment(\.persistence)` (default `
 `\.managedObjectContext`.
 
 **Prefs** (`@AppStorage`): `Prefs.selectedBabyID` (uuid string), `Prefs.volumeUnit` (`VolumeUnit`, default ounces if
-`Locale.current.measurementSystem == .us` else ml), `Prefs.unitSystem` (`UnitSystem`, metric if locale metric else imperial).
+`Locale.current.measurementSystem == .us` else ml), `Prefs.unitSystem` (`UnitSystem`, metric if locale metric else imperial). Appearance and battery prefs:
+`Prefs.appearanceMode` (`AppearanceMode`, default System), `Prefs.nightStartMinutes` / `Prefs.nightEndMinutes` (minutes
+since midnight, default 1140 and 420), `Prefs.dimScreenAtNight` (default off), `Prefs.keepScreenOnWhileNursing`
+(default off). See "Appearance and Night mode" and "Battery opt-ins" below.
 
 **Share acceptance.** `AppDelegate` (via `@UIApplicationDelegateAdaptor`) returns a `UISceneConfiguration` whose
 `delegateClass = SceneDelegate.self`. `SceneDelegate` handles `windowScene(_:userDidAcceptCloudKitShareWith:)` and
@@ -336,7 +339,7 @@ Info.plist has `CKSharingSupported = YES`, `UIBackgroundModes = [remote-notifica
 - `TrendsView(baby:)`: 7 / 14 / 30 day segmented picker; Swift Charts cards: sleep hours per day, feeds per day,
   diapers per day stacked (Wet / Dirty / Both), bottle volume per day, weight over time (all growth entries). Each card
   shows the average over complete days (excluding today).
-- `SettingsView`: Babies (edit / add via `BabyFormView`); Caregivers (`CaregiverRow` per baby: status "Not shared" /
+- `SettingsView`: Babies (edit / add via `BabyFormView`); Appearance; Nursing timer (keep-awake opt-in); Caregivers (`CaregiverRow` per baby: status "Not shared" /
   "Shared with N people" / "Shared with you by <owner>", Invite/Manage button → coordinator; if sync disabled, explain
   the build has iCloud off); Units pickers; "Export all data (CSV)" → temp file → `UIActivityViewController`; About
   (version, GPL-3.0 note, source link `AppConfig.sourceCodeURL`, "No accounts, no ads, no tracking").
@@ -346,6 +349,70 @@ Info.plist has `CKSharingSupported = YES`, `UIBackgroundModes = [remote-notifica
   invite instead (the baby appears once iCloud syncs).
 - `EventKind+Style.swift`: `color` (sleep indigo, breastfeed pink, bottle orange, solids green, diaper teal, pump
   purple, growth blue, medicine red) and `KindIcon(kind:size:)` (white SF Symbol on a gradient circle).
+
+## Appearance and Night mode
+
+Night is a dim, warm, true-black look for feeding in the dark: a bright screen is the enemy at 3 a.m., and black pixels
+cost nothing on an OLED.
+
+**Setting** (Settings > Appearance, an inline picker): System, Light, Dark, Night, "Night on a schedule" (Night between
+two times, default 7:00 PM to 7:00 AM, otherwise System). From/To time pickers appear for the schedule. "Dim screen at
+night" appears only when Night is possible (the two Night modes), default off, with a `BatteryImpactNote` saying it
+saves battery. A footer says widgets and Live Activities follow the system's Light/Dark setting: iOS doesn't let apps
+force it.
+
+**Logic (BabyLogKit, `Appearance.swift`, tested in `AppearanceTests`).** Pure and clock-free.
+- `AppearanceMode` (`system, light, dark, night, nightSchedule`; raw values are stored, never rename), `canShowNight`,
+  `resolved(schedule:at:calendar:) -> ResolvedAppearance` (`system, light, dark, night`), `nextTransition(schedule:after:calendar:)`
+  (nil unless scheduled).
+- `NightSchedule(startMinutes:endMinutes:)`: minutes of the day, folded into 0..<1440. Active from start (inclusive) to
+  end (exclusive), wrapping past midnight when start > end; start == end is an empty window (never active).
+  `isNightActive(at:calendar:)`; `nextTransition(after:calendar:)` is the next start or end strictly after `date`, found
+  with `Calendar.nextDate(after:matching:)` so daylight-saving changes land on the right wall-clock time.
+
+**Applying it (`App/Support/AppearanceHost.swift`, `.appearanceHost()` on the root of the `WindowGroup`).**
+- Resolves the mode to a `ResolvedAppearance` held in `@State` (seeded from `UserDefaults` in `init`, so there is no
+  flash at launch). Light/Dark/Night set `.preferredColorScheme`; System sets nil. Night also sets `.tint` to the Night
+  accent and `\.appTheme`.
+- **No polling.** One `.task(id:)` keyed on mode, schedule, "scene is active" and a clock-change counter: it
+  re-evaluates now, then sleeps exactly until `nextTransition`, once, and loops to the following one. Backgrounding
+  changes the key, which cancels the wait, so nothing runs in the background; becoming active (and
+  `UIApplication.significantTimeChangeNotification`, which bumps the counter) restarts it and re-evaluates.
+- **Theme.** `Shared/AppTheme.swift`: `struct AppTheme { isNight }` with `.standard` and `.night`, exposed as
+  `@Environment(\.appTheme)` (default `.standard`, which is all the widgets ever see). It holds the palette and the roles
+  views ask for: `background` (#000), `surface` (near black, for rows and cards), `raised`, `primary` / `secondary` /
+  `tertiary` text (dim warm amber and peach, never white), `accent` (deep warm red-amber), `onColor` (text on tinted
+  buttons), `destructive`, `color(for: EventKind)` / `color(for: BreastSide)` (desaturated, dimmed, each kind still its
+  own hue), `diaperColors` for Trends. Every accessor returns the stock system value when `isNight` is false, so Light,
+  Dark and System look exactly as before. `KindIcon` reads the theme.
+- **Applying to screens (`App/Support/ThemeModifiers.swift`).** `themedList()` (List/Form: amber text, hidden scroll
+  background, black), `themedScreen()` (ScrollView and the like), `themedForeground()`, `themedSection()` (near-black
+  rows), `themedOnColor()` (label on a tinted button), `themedDestructive()`. Each is a no-op in the standard theme, by
+  an `if theme.isNight` that adds modifiers only at night. Do NOT put one `.foregroundStyle` on the root instead: an
+  explicit foreground style on an ancestor changes stock controls in Light and Dark (a `.borderedProminent` button's
+  label turns black). Views that tint or color things themselves use `theme.secondary`, `theme.color(for:)` and so on.
+- **Bars (`App/Support/BarAppearance.swift`).** Navigation titles and the segmented picker can't be colored from
+  SwiftUI, so Night sets the UIKit appearance proxies and restyles the bars that already exist (it walks the windows'
+  views and the view controllers, because on recent iOS the floating tab bar isn't a `UITabBar` in the view tree).
+  It does nothing until Night has been shown once in the launch, so Light/Dark/System keep the stock bars. Known limit:
+  the system's glass tab bar keeps its own label color for unselected items; the selected one follows the accent.
+- **Dimming (`App/Support/ScreenDimmer.swift`).** While Night is showing, "Dim screen at night" is on and the scene is
+  active, the brightness is lowered to `min(current, 0.2)` and the person's own level is put back when any of that
+  stops (Night ends, the app goes inactive or to the background, the toggle is turned off). If they moved the slider
+  meanwhile, their value is kept. It goes through the active window scene's `screen`: `UIScreen.main` is deprecated as
+  of iOS 26. iOS also restores the system brightness itself when the app goes away. (The simulator ignores brightness
+  writes, so this is verified there only by the state machine, not by pixels.)
+- Widgets and Live Activities follow the system appearance, not this setting.
+
+## Battery opt-ins
+
+Battery is a top priority, so anything that costs it is off by default and says so where it is turned on.
+- `BatteryImpactNote(_ text, effect: .costs | .saves)` (`App/Views/BatteryImpactNote.swift`): a small battery icon and
+  one sentence in the secondary style. Put it directly under the toggle for any setting that costs (or saves) battery.
+- **Keep screen on during nursing timer** (Settings > Nursing timer, `Prefs.keepScreenOnWhileNursing`, default OFF).
+  `BreastTimerView` sets `isIdleTimerDisabled` to the pref on appear (and when it changes), and always back to false on
+  disappear. Note under it: "Keeps your screen on while the timer is open, which uses more battery."
+- **Dim screen at night** is the other way around (`.saves`).
 
 ## Widgets, Live Activities, and widget actions
 
@@ -395,6 +462,15 @@ Battery drain from widgets is a known complaint about other baby trackers, so th
 - No background fetch, no `BGTaskScheduler`, no location, no audio sessions, and no polling loops or repeating timers
   anywhere. Everything is driven by events: Core Data saves, CloudKit remote-change notifications, changes to the three
   preferences that are in the snapshot, and entering the background.
+- Time since the last feed or sleep ("ago") uses `Elapsed.since`: on iOS 18+ `Text(Date.now, format: .offset(to: date,
+  allowedFields: [.day, .hour, .minute], maxFieldCount: 2, sign: .never))`, a `SystemFormatStyle.DateOffset` that the
+  system keeps current once a minute with no timeline reloads ("2 hours, 10 minutes", "6 minutes"; no seconds, so it
+  neither flickers nor drains). The input is "now" and `date` is the anchor; passing `date` as both gives a constant 0.
+  iOS 17 falls back to `Text(date, style: .relative)`. The system picks the wording (wide units, "0 minutes" in the first
+  minute); the format style has no unit-width option.
+- On a dimmed Always-On Lock Screen (`isLuminanceReduced`) iOS draws the seconds of any ticking `Text(timerInterval:)` as
+  dashes once a timer passes a minute, so the Live Activity's total came out as "1:--". `LiveClock` and `NursingTotalClock`
+  therefore show whole minutes (`Elapsed.since`, "1 minute") in that state. Paused sides are static text and unaffected.
 - Dark mode: widget background is the system background (pure black), tiles use muted tints (about 20% to 50% opacity)
   instead of solid saturated fills, and kind icons are slightly dimmed.
 

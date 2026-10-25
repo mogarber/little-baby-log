@@ -23,6 +23,7 @@ struct EventEditorView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.managedObjectContext) private var context
+    @Environment(\.appTheme) private var theme
     @AppStorage(Prefs.volumeUnit) private var volumeUnit: VolumeUnit = Prefs.defaultVolumeUnit
     @AppStorage(Prefs.unitSystem) private var unitSystem: UnitSystem = Prefs.defaultUnitSystem
 
@@ -62,18 +63,23 @@ struct EventEditorView: View {
                 } footer: {
                     if let message = draft.validationMessage {
                         Text(message)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(theme.destructive)
                     }
                 }
+                .themedSection()
 
                 if isEditing {
                     Section {
-                        Button("Delete entry", role: .destructive) {
+                        Button(role: .destructive) {
                             confirmDelete = true
+                        } label: {
+                            Text("Delete entry").themedDestructive()
                         }
                     }
+                    .themedSection()
                 }
             }
+            .themedList()
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle(screenTitle)
             .navigationBarTitleDisplayMode(.inline)
@@ -100,8 +106,12 @@ struct EventEditorView: View {
 
     // MARK: Fields by kind
 
-    @ViewBuilder
     private var kindFields: some View {
+        kindSection.themedSection()
+    }
+
+    @ViewBuilder
+    private var kindSection: some View {
         switch draft.kind {
         case .sleep:
             sleepFields
@@ -139,7 +149,7 @@ struct EventEditorView: View {
             if draft.isRunning {
                 Text("The timer is still running. Open it from Today to change sides or finish.")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(theme.secondary)
             } else {
                 NumberField("Left", value: minutesBinding(\.leftSeconds), unit: "min")
                 NumberField("Right", value: minutesBinding(\.rightSeconds), unit: "min")

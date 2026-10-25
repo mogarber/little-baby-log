@@ -7,6 +7,7 @@ struct HistoryView: View {
 
     @FetchRequest private var events: FetchedResults<LogEvent>
     @Environment(\.managedObjectContext) private var context
+    @Environment(\.appTheme) private var theme
     @State private var filter: EventKind?
     @State private var editor: EditorTarget?
     @State private var nursing: NursingSheetItem?
@@ -52,6 +53,7 @@ struct HistoryView: View {
                     Text(emptyMessage)
                 }
                 .listRowBackground(Color.clear)
+                .foregroundStyle(theme.secondary)
             }
             ForEach(groups) { group in
                 Section {
@@ -73,8 +75,10 @@ struct HistoryView: View {
                 } header: {
                     DayHeader(day: group.day, events: group.summaryEvents)
                 }
+                .themedSection()
             }
         }
+        .themedList()
         .navigationTitle("History")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -149,6 +153,8 @@ struct HistoryView: View {
 }
 
 private struct DayHeader: View {
+    @Environment(\.appTheme) private var theme
+
     let day: Date
     let events: [LogEvent]
     @AppStorage(Prefs.volumeUnit) private var volumeUnit: VolumeUnit = Prefs.defaultVolumeUnit
@@ -157,10 +163,10 @@ private struct DayHeader: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
                 .font(.headline)
-                .foregroundStyle(.primary)
+                .foregroundStyle(theme.primary)
             Text(summaryLine)
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(theme.secondary)
         }
         .textCase(nil)
         .padding(.top, 6)

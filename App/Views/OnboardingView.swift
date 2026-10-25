@@ -4,6 +4,8 @@ import BabyLogKit
 struct OnboardingView: View {
     let onCreate: (String, Date) -> Void
 
+    @Environment(\.appTheme) private var theme
+
     @State private var name = ""
     @State private var birthDate = Date.now
     @FocusState private var nameFocused: Bool
@@ -30,7 +32,7 @@ struct OnboardingView: View {
                         .multilineTextAlignment(.center)
                     Text("Sleep, feeds and diapers, one tap at a time. Free, private, and shared with your family through your own iCloud.")
                         .font(.body)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(theme.secondary)
                         .multilineTextAlignment(.center)
                 }
                 .padding(.top, 32)
@@ -52,7 +54,7 @@ struct OnboardingView: View {
                     .font(.title3)
                     .padding(16)
                 }
-                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .background(theme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
                 Button {
                     Haptics.success()
@@ -62,6 +64,7 @@ struct OnboardingView: View {
                         .font(.title3.weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
+                        .themedOnColor()
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
@@ -69,14 +72,15 @@ struct OnboardingView: View {
 
                 Text("Already invited by another caregiver? Open their invitation on this phone and your baby will appear here once iCloud syncs.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(theme.secondary)
                     .multilineTextAlignment(.center)
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 32)
         }
         .scrollDismissesKeyboard(.interactively)
-        .background(Color(.systemGroupedBackground))
+        .background(theme.background)
+        .themedForeground()
     }
 }
 

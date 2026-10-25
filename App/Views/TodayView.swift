@@ -8,6 +8,7 @@ struct TodayView: View {
     @Binding var link: DeepLink?
 
     @Environment(\.managedObjectContext) private var context
+    @Environment(\.appTheme) private var theme
     @FetchRequest private var running: FetchedResults<LogEvent>
     @FetchRequest private var dayEvents: FetchedResults<LogEvent>
 
@@ -47,6 +48,7 @@ struct TodayView: View {
                         )
                     }
                 }
+                .themedSection()
             }
 
             Section {
@@ -58,6 +60,7 @@ struct TodayView: View {
                         .textCase(nil)
                 }
             }
+            .themedSection()
 
             Section {
                 QuickActionsGrid(
@@ -70,17 +73,19 @@ struct TodayView: View {
             } header: {
                 Text("Log").textCase(nil)
             }
+            .themedSection()
 
             Section {
                 DaySummaryView(events: Array(dayEvents), day: day)
             } header: {
                 Text("Today").textCase(nil)
             }
+            .themedSection()
 
             Section {
                 if timeline.isEmpty {
                     Text("Nothing logged yet today.")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(theme.secondary)
                 } else {
                     ForEach(timeline, id: \.objectID) { event in
                         Button {
@@ -101,7 +106,9 @@ struct TodayView: View {
             } header: {
                 Text("Timeline").textCase(nil)
             }
+            .themedSection()
         }
+        .themedList()
         .navigationTitle(baby.displayName)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {

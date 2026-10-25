@@ -58,6 +58,8 @@ struct DaySummaryView: View {
 }
 
 private struct StatCell: View {
+    @Environment(\.appTheme) private var theme
+
     let kind: EventKind
     let value: String
     let label: String
@@ -73,11 +75,11 @@ private struct StatCell: View {
                     .minimumScaleFactor(0.7)
                 Text(label)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(theme.secondary)
                 if let detail {
                     Text(detail)
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(theme.secondary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                 }

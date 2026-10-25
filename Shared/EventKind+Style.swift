@@ -26,20 +26,24 @@ extension BreastSide {
     }
 }
 
-/// A white SF Symbol on a gradient circle in the kind's color.
+/// A white SF Symbol on a gradient circle in the kind's color. In the Night theme the colors are dimmed and the
+/// symbol is a soft amber instead of white.
 struct KindIcon: View {
+    @Environment(\.appTheme) private var theme
+
     let kind: EventKind
     var size: CGFloat = 44
 
     var body: some View {
+        let color = theme.color(for: kind)
         Image(systemName: kind.symbolName)
             .font(.system(size: size * 0.44, weight: .semibold))
-            .foregroundStyle(.white)
+            .foregroundStyle(theme.onColor)
             .frame(width: size, height: size)
             .background(
                 Circle().fill(
                     LinearGradient(
-                        colors: [kind.color.opacity(0.75), kind.color],
+                        colors: [color.opacity(0.75), color],
                         startPoint: .top,
                         endPoint: .bottom
                     )
