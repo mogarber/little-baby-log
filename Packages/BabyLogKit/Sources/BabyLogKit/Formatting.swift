@@ -1,7 +1,7 @@
 import Foundation
 
 public enum DurationFormat {
-    /// "1h 5m", "2h", "12m", "45s"
+    /// "1h 5m", "2h", "12m", "<1m", "0m"
     public static func short(_ interval: TimeInterval) -> String {
         let total = Int(max(0, interval).rounded(.down))
         let hours = total / 3600
@@ -10,7 +10,7 @@ public enum DurationFormat {
             return minutes == 0 ? "\(hours)h" : "\(hours)h \(minutes)m"
         }
         if minutes > 0 { return "\(minutes)m" }
-        return "\(total)s"
+        return interval > 0 ? "<1m" : "0m"
     }
 
     /// "5:09", "1:05:09"

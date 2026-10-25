@@ -7,9 +7,9 @@ struct DurationFormatTests {
         #expect(DurationFormat.short(3900) == "1h 5m")
         #expect(DurationFormat.short(7200) == "2h")
         #expect(DurationFormat.short(720) == "12m")
-        #expect(DurationFormat.short(45) == "45s")
-        #expect(DurationFormat.short(0) == "0s")
-        #expect(DurationFormat.short(-30) == "0s")
+        #expect(DurationFormat.short(45) == "<1m")
+        #expect(DurationFormat.short(0) == "0m")
+        #expect(DurationFormat.short(-30) == "0m")
         #expect(DurationFormat.short(3599) == "59m")
     }
 

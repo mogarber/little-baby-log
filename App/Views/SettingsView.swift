@@ -74,23 +74,7 @@ struct SettingsView: View {
                 Button {
                     babySheet = .edit(baby)
                 } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(baby.displayName)
-                                .font(.headline)
-                                .foregroundStyle(.primary)
-                            if let birthDate = baby.birthDate {
-                                Text(BabyAge.description(birthDate: birthDate))
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(.tertiary)
-                    }
-                    .contentShape(Rectangle())
+                    BabyRow(baby: baby)
                 }
                 .buttonStyle(.plain)
             }
@@ -184,6 +168,31 @@ struct SettingsView: View {
         } catch {
             exportError = error.localizedDescription
         }
+    }
+}
+
+/// A baby's name and age. Observes the baby so renames show up immediately.
+private struct BabyRow: View {
+    @ObservedObject var baby: Baby
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(baby.displayName)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                if let birthDate = baby.birthDate {
+                    Text(BabyAge.description(birthDate: birthDate))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.tertiary)
+        }
+        .contentShape(Rectangle())
     }
 }
 

@@ -34,6 +34,9 @@ struct ActiveTimerRow: View {
             } label: {
                 Text(isNursing ? "Open" : "Wake up")
                     .font(.headline)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .frame(minWidth: 72)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 6)
             }

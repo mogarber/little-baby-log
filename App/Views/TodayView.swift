@@ -3,7 +3,7 @@ import CoreData
 import BabyLogKit
 
 struct TodayView: View {
-    let baby: Baby
+    @ObservedObject var baby: Baby
     let day: Date
 
     @Environment(\.managedObjectContext) private var context
@@ -15,7 +15,7 @@ struct TodayView: View {
     @State private var feedback = 0
 
     init(baby: Baby, day: Date) {
-        self.baby = baby
+        _baby = ObservedObject(wrappedValue: baby)
         self.day = day
         _running = FetchRequest(fetchRequest: LogEvent.requestRunning(baby: baby))
         _dayEvents = FetchRequest(fetchRequest: LogEvent.requestOverlapping(baby: baby, from: day))

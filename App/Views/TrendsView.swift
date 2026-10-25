@@ -192,7 +192,7 @@ private struct TrendsContent: View {
             title: "Bottle volume",
             subtitle: avg > 0
                 ? "Average " + avg.formatted(.number.precision(.fractionLength(0...1))) + " " + unit.symbol + " a day"
-                : "No bottles in this range"
+                : (stats.contains { $0.summary.bottleML > 0 } ? "No complete days yet" : "No bottles in this range")
         ) {
             DayBarChart(stats: stats, days: days, color: EventKind.bottle.color, average: avg, unit: unit.symbol) {
                 unit.value(fromMilliliters: $0.bottleML)

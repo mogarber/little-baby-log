@@ -24,22 +24,10 @@ struct QuickActionsGrid: View {
     }
 
     private func tile(for kind: EventKind) -> some View {
-        Button {
-            onTap(kind)
-        } label: {
-            VStack(spacing: 6) {
-                KindIcon(kind: kind, size: 58)
-                Text(title(for: kind))
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-            .frame(maxWidth: .infinity, minHeight: 88)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.borderless)
-        .contextMenu {
+        // A Menu with a primary action (tap = log, long-press = menu) instead of
+        // Button + .contextMenu: inside a List row, every tile's .contextMenu
+        // resolved to the first tile's menu ("Log past sleep").
+        Menu {
             Button {
                 onLogPast(kind)
             } label: {
@@ -63,7 +51,21 @@ struct QuickActionsGrid: View {
                     Label("Wet + dirty", systemImage: "drop.fill")
                 }
             }
+        } label: {
+            VStack(spacing: 6) {
+                KindIcon(kind: kind, size: 58)
+                Text(title(for: kind))
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity, minHeight: 88)
+            .contentShape(Rectangle())
+        } primaryAction: {
+            onTap(kind)
         }
+        .buttonStyle(.borderless)
         .accessibilityLabel(title(for: kind))
     }
 }
