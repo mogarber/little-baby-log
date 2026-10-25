@@ -38,9 +38,23 @@ enum AppServices {
             .map { _ in () }
 
         // Live Activities follow quickly; widgets can wait a second and coalesce bursts of saves.
-        Publishers.Merge(saves, remote)
+        // Updating and ending activities works in the background (a partner finishing a timer ends mine when
+        // the CloudKit push wakes the app); starting waits for the foreground, see LiveActivityManager.
+        saves
             .debounce(for: .milliseconds(300), scheduler: DispatchQueue.main)
-            .sink { _ in Task { await LiveActivityManager.shared.reconcile() } }
+            .sink { _ in Task { await LiveActivityManager.shared.reconcile(.change) } }
+            .store(in: &cancellables)
+
+        // The remote-change notification can arrive before the view context has merged the new rows, so hop
+        // onto the main actor and queue behind the merge on the view context before fetching.
+        remote
+            .debounce(for: .milliseconds(300), scheduler: DispatchQueue.main)
+            .sink { _ in
+                Task { @MainActor in
+                    await persistence.viewContext.perform {}
+                    await LiveActivityManager.shared.reconcile(.change)
+                }
+            }
             .store(in: &cancellables)
 
         Publishers.Merge3(saves, remote, prefs)
@@ -52,12 +66,23 @@ enum AppServices {
             .sink { _ in Task { await syncNow() } }
             .store(in: &cancellables)
 
-        Task { await syncNow() }
+        Task {
+            #if DEBUG
+            await DebugHooks.prepare()
+            #endif
+            await syncNow(.launch)
+        }
+    }
+
+    /// The scene became active (launch, return from the background, unlock): the one moment Live Activities
+    /// that were waiting for the foreground can start.
+    static func sceneDidBecomeActive() async {
+        await LiveActivityManager.shared.reconcile(.foreground)
     }
 
     /// Updates the snapshot, widget timelines, and Live Activities immediately.
-    static func syncNow() async {
+    static func syncNow(_ trigger: LiveActivityManager.Trigger = .change) async {
         WidgetSnapshotWriter.shared.refresh()
-        await LiveActivityManager.shared.reconcile()
+        await LiveActivityManager.shared.reconcile(trigger)
     }
 }

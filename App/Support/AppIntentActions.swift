@@ -50,6 +50,6 @@ enum AppIntentActions {
         } else {
             log.notice("\(name, privacy: .public): baby or timer not found")
         }
-        await AppServices.syncNow()
+        await AppServices.syncNow(.intent)
     }
 }

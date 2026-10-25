@@ -37,4 +37,7 @@ struct TimerActivityAttributes: ActivityAttributes {
     var babyID: String
     var babyName: String
     var kind: EventKind
+    /// The `LogEvent` uuid this activity was started for, so a relaunch can re-adopt it and a finished timer's
+    /// activity is never mistaken for the next timer's. nil on activities started by older builds.
+    var eventID: String?
 }

@@ -456,8 +456,8 @@ Battery drain from widgets is a known complaint about other baby trackers, so th
 - Widget timelines use `.never`. Every time on screen updates itself: `Text(date, style: .relative)` for "ago",
   `Text(timerInterval:)` for running clocks. The app calls `WidgetCenter.reloadAllTimelines()` only when the snapshot
   JSON actually changed (debounced ~1 s, and skipped when equal apart from `generatedAt`). No periodic reloads.
-- Live Activities are updated only on real state changes (start, side switch, pause, finish): `reconcile()` compares
-  the new content state with the current one first. Clocks tick through `Text(timerInterval:)`. An activity ends as
+- Live Activities are updated only on real state changes (start, side switch, pause, finish): `LiveActivityPlanner` compares
+  the new content state with the current one first and emits no action when they are equal. Clocks tick through `Text(timerInterval:)`. An activity ends as
   soon as its timer finishes or is deleted. No push tokens.
 - No background fetch, no `BGTaskScheduler`, no location, no audio sessions, and no polling loops or repeating timers
   anywhere. Everything is driven by events: Core Data saves, CloudKit remote-change notifications, changes to the three
@@ -474,6 +474,44 @@ Battery drain from widgets is a known complaint about other baby trackers, so th
 - Dark mode: widget background is the system background (pure black), tiles use muted tints (about 20% to 50% opacity)
   instead of solid saturated fills, and kind icons are slightly dimmed.
 
+### Live Activity reconciliation
+`LiveActivityManager.reconcile(_ trigger:)` (app, `@MainActor`) makes ActivityKit match the running sleep / nursing timers in
+the store. The decisions are a pure function, `LiveActivityPlanner.plan(timers:activities:dismissed:isForeground:)` in
+BabyLogKit (unit tested); the manager gathers the inputs, performs the returned actions (`end`, `update`, `start`), and
+remembers the outcome. Calls are serialized (a chained `Task`), so overlapping triggers can't both start an activity.
+- **Triggers**: process launch (`.launch`), every `scenePhase == .active` (`.foreground`, from `LittleBabyLogApp`
+  `onChange(of: scenePhase, initial: true)`), every Core Data save on the app's coordinator (debounced 300 ms), every
+  `NSPersistentStoreRemoteChange` (a partner's change; debounced, then `await viewContext.perform {}` so the fetch queues
+  behind the merge, and the fetch uses `shouldRefreshRefetchedObjects`), entering the background, and after a widget /
+  Live Activity intent (`.intent`). No polling, no timers.
+- **Foreground-only start**: `Activity.request` only works while the app is in the foreground (push-to-start would need a
+  server, which this app doesn't have). `isForeground` is true for `.foreground`, `.intent` (a `LiveActivityIntent` may start
+  activities from a background launch), or `UIApplication.applicationState == .active`. When a reconcile wants to start an
+  activity but isn't foreground, the timer is *pending*: nothing is started, nothing is remembered, and the next `.active`
+  reconcile starts it. So a timer already running at launch, or one a partner started on their phone and that arrived by iCloud
+  sync while the app was in the background, gets its Live Activity the moment the app is next opened. Until then there is no
+  Live Activity for it; that is an iOS limit. A failed `Activity.request` is also left pending and retried at the next trigger.
+- **Updates and ends work in the background** and are applied immediately: when a CloudKit push wakes the app and a partner
+  has finished the timer, the activity ends right away. A different timer for the same baby and kind (new event uuid) ends the
+  old activity first; the new one waits for the foreground if need be.
+- **Identity**: `TimerActivityAttributes.eventID` (the `LogEvent` uuid, optional so activities started by older builds still
+  decode) ties an activity to its timer. After a relaunch the activities are still in `Activity.activities` and are re-adopted
+  by `eventID` (or by babyID + kind when it's nil). At most one activity per running timer: a second live activity for the same
+  timer is ended. Planner input has at most one timer per baby and kind (the newest).
+- **Dismissed vs. never started**: per event uuid the app keeps a `LiveActivityLedger` in UserDefaults:
+  `liveActivityStartedTimers` (an activity was requested) and `liveActivityDismissedTimers` (the activity ended without the app
+  ending it). `activityStateUpdates` is observed for every adopted / started activity; a terminal state the app didn't cause
+  (swiped away on the Lock Screen or Dynamic Island, or the system's 8 h limit) records the event as dismissed. An event that is
+  "started but has no live activity now" is treated as dismissed too, which covers a swipe while the app wasn't running. A
+  dismissed timer never gets another activity; a timer that never got one (not in the ledger) does. Both sets are pruned to the
+  timers that are still running.
+- Limitations: a Live Activity the system removes while the app isn't running (for example on device reboot) looks like a
+  dismissal and isn't restarted for that timer. Starting from the background is impossible without push-to-start. Users who
+  turned Live Activities off get nothing (`areActivitiesEnabled`).
+- DEBUG builds only (`App/Support/DebugHooks.swift`): launch argument `-lblResetLiveActivities` ends every activity and clears
+  the ledger; `-lblInsertTimerInBackground sleep|breastfeed` inserts a running timer from a background context 2 s after the
+  app enters the background, to exercise the pending-start path without a second device.
+
 ### Implementation notes (where the build differs from the sketch below)
 - **Timeline**: one entry now plus one at the next midnight (same data, so "today" counts roll over), reload policy
   `.never`. See "Battery" below.
@@ -487,8 +525,8 @@ Battery drain from widgets is a known complaint about other baby trackers, so th
 - App-only intent bodies are behind `#if LBL_APP` (`OTHER_SWIFT_FLAGS = -D LBL_APP` on the app target) and implemented in
   `App/Support/AppIntentActions.swift`; each action saves and then runs `AppServices.syncNow()` before `perform()` returns
   (iOS may suspend the process right after).
-- A Live Activity is started at most once per timer (`liveActivityStartedTimers` in UserDefaults), so one that was swiped
-  away or hit the system's 8 h limit doesn't come back.
+- Live Activity lifecycle: see "Live Activity reconciliation" above. In short, one activity per running timer, started only
+  in the foreground, never re-started for a timer the person dismissed.
 - Never put `.fixedSize()` on a `Text(timerInterval:)` in a widget: the widget renders blank.
 - Don't interpolate a `Text(date, style: .relative)` into a longer `Text` on Home Screen widgets: it loses the surrounding
   foreground style and renders black in dark mode. Use separate views (`AgoStack`, `AgoLine`). (Lock Screen accessory
@@ -550,15 +588,17 @@ Tests: snapshot contents for SampleData + running timers, JSON round trip, every
   `FinishNursingIntent`, `ToggleSleepIntent`, `LogDiaperIntent(babyID, kind: DiaperKindAppEnum)`. `perform()` is
   implemented in the app only (`#if` on a custom `-D LBL_APP` Swift flag set on the app target, or put the perform
   bodies in an app-only extension file); in the widget extension it must still compile.
-- `TimerActivityAttributes: ActivityAttributes` — static: `babyID`, `babyName`, `kind` (sleep / breastfeed);
+- `TimerActivityAttributes: ActivityAttributes` — static: `babyID`, `babyName`, `kind` (sleep / breastfeed), `eventID?` (the timer's event uuid);
   ContentState: `startedAt`, `leftSeconds`, `rightSeconds`, `activeSide`, `activeSideStartedAt`, `isPaused`.
 
 ### App additions
 - `WidgetSnapshotWriter` (observes saves + remote changes; also runs on launch and on scenePhase .background).
-- `LiveActivityManager` (`@MainActor`): after the same triggers, reconciles ActivityKit with running timers in the
-  local store — start an activity for each running sleep / nursing timer that doesn't have one, update content state
-  when it changes, end activities whose timer finished (dismissal `.immediate`) or was deleted. Guard with
-  `ActivityAuthorizationInfo().areActivitiesEnabled`. No push tokens (no server).
+- `LiveActivityManager` (`@MainActor`): after the same triggers plus every `scenePhase == .active` and after intents, reconciles
+  ActivityKit with running timers in the local store, using `LiveActivityPlanner` (BabyLogKit) for the decisions. See "Live
+  Activity reconciliation" above: start an activity for each running sleep / nursing timer that doesn't have one (foreground only,
+  otherwise pending), update content state when it changes, end activities whose timer finished (dismissal `.immediate`) or was
+  deleted, never restart one the person dismissed. Guard with `ActivityAuthorizationInfo().areActivitiesEnabled`. No push tokens
+  (no server).
 - Deep-link handling (`.onOpenURL` in RootView / MainTabView) as above.
 - Settings: a short "Widgets" section explaining how to add them (long-press Home Screen → Edit → Add Widget →
   Little Baby Log) and Lock Screen.
