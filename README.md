@@ -2,6 +2,8 @@
 
 A free, open-source iPhone baby tracker for sleep, feeding, diapers, and more, built for one-handed use at 3am.
 
+<a href="https://www.buymeacoffee.com/mogarber" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" height="60" width="217"></a>
+
 ## Why
 
 Baby trackers shouldn't cost a monthly subscription, and they shouldn't know everything about your family.
@@ -94,6 +96,12 @@ Ideas for after v1:
 - Sleep-window predictions
 - A photo for each baby
 - iPad layout polish
+
+## Support the project
+
+Little Baby Log will always be free, with no ads or paid tier. Keeping it on the App Store still costs money (the Apple Developer Program fee, test devices, time). If it's made your nights a little easier, you can help cover that:
+
+<a href="https://www.buymeacoffee.com/mogarber" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" height="60" width="217"></a>
 
 ## License
 
