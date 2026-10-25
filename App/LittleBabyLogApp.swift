@@ -12,6 +12,9 @@ struct LittleBabyLogApp: App {
 
     init() {
         AppServices.start()
+        #if DEBUG
+        DebugSampleHistory.seedIfRequested()
+        #endif
     }
 
     var body: some Scene {

@@ -35,11 +35,14 @@ struct SettingsView: View {
     @State private var babySheet: BabySheet?
     @State private var shareItem: ShareItem?
     @State private var exportError: String?
+    @State private var remindersOn = false
 
     var body: some View {
         Form {
             babiesSection
+            remindersSection
             caregiversSection
+            syncSection
             unitsSection
             appearanceSection
             nursingTimerSection
@@ -95,6 +98,34 @@ struct SettingsView: View {
             }
         } header: {
             Text("Babies")
+        }
+        .themedSection()
+    }
+
+    private var remindersSection: some View {
+        Section {
+            NavigationLink {
+                RemindersSettingsView()
+            } label: {
+                HStack {
+                    Label("Reminders", systemImage: "bell.badge.fill")
+                    Spacer()
+                    Text(remindersOn ? "On" : "Off")
+                        .foregroundStyle(theme.secondary)
+                }
+            }
+        } footer: {
+            Text("Feed every few hours, a heads-up before nap windows, or set times each day. Reminders stay on this phone.")
+        }
+        .themedSection()
+        .onAppear { remindersOn = ReminderSettingsStore().hasAnythingEnabled }
+    }
+
+    private var syncSection: some View {
+        Section {
+            ICloudSyncRow()
+        } header: {
+            Text("iCloud sync")
         }
         .themedSection()
     }
@@ -312,39 +343,33 @@ struct CaregiverRow: View {
     @State private var coordinator: CloudSharingCoordinator?
     @State private var isWorking = false
     @State private var refreshTick = 0
-    @State private var errorText: String?
+    @State private var problem: CloudSyncProblem?
 
     var body: some View {
         let _ = refreshTick
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(baby.displayName)
-                    .font(.headline)
-                Text(statusText)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 8)
-            if isWorking {
-                ProgressView()
-            } else {
-                Button(shareButtonTitle) {
-                    startSharing()
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(baby.displayName)
+                        .font(.headline)
+                    Text(statusText)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.bordered)
-                .disabled(!persistence.isCloudSyncEnabled)
+                Spacer(minLength: 8)
+                if isWorking {
+                    ProgressView()
+                } else {
+                    Button(shareButtonTitle) {
+                        startSharing()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!persistence.isCloudSyncEnabled)
+                }
             }
-        }
-        .alert(
-            "Couldn't open sharing",
-            isPresented: Binding(
-                get: { errorText != nil },
-                set: { if !$0 { errorText = nil } }
-            )
-        ) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(errorText ?? "")
+            if let problem {
+                SyncProblemView(problem: problem) { self.problem = nil }
+            }
         }
     }
 
@@ -376,6 +401,16 @@ struct CaregiverRow: View {
     }
 
     private func startSharing() {
+        problem = nil
+        // No point waiting for CloudKit to fail when we already know there's no iCloud account.
+        if CloudSyncStatus.shared.state == .notSignedIn {
+            problem = CloudSyncProblem(
+                kind: .notSignedIn,
+                message: CloudSyncProblem.message(for: .notSignedIn),
+                technicalDetails: "iCloud account status: no account (CKAccountStatus.noAccount)"
+            )
+            return
+        }
         isWorking = true
         let newCoordinator = CloudSharingCoordinator(persistence: persistence, baby: baby) {
             refreshTick += 1
@@ -385,9 +420,113 @@ struct CaregiverRow: View {
             do {
                 try await newCoordinator.present()
             } catch {
-                errorText = error.localizedDescription
+                problem = CloudSyncProblem.classify(error)
             }
             isWorking = false
+        }
+    }
+}
+
+/// The "iCloud sync" status line: Syncing / Up to date / Not signed in / Error, with the plain-language reason and a
+/// Details disclosure on errors.
+private struct ICloudSyncRow: View {
+    @State private var status = CloudSyncStatus.shared
+    @Environment(\.appTheme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                Label {
+                    Text("iCloud sync")
+                } icon: {
+                    Image(systemName: symbol)
+                        .foregroundStyle(tint)
+                }
+                Spacer(minLength: 8)
+                if status.state == .syncing {
+                    ProgressView()
+                }
+                Text(title)
+                    .foregroundStyle(theme.secondary)
+            }
+            if case .error(let problem) = status.state {
+                SyncProblemView(problem: problem, onDismiss: nil)
+            } else if status.state == .notSignedIn {
+                Text("Sign in to iCloud in the Settings app to sync and share.")
+                    .font(.footnote)
+                    .foregroundStyle(theme.secondary)
+            } else if status.state == .unavailable {
+                Text("iCloud is restricted or unavailable on this phone right now.")
+                    .font(.footnote)
+                    .foregroundStyle(theme.secondary)
+            }
+        }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
+        .onAppear { status.refreshAccount() }
+    }
+
+    private var title: String {
+        switch status.state {
+        case .off: return "Off in this build"
+        case .checking: return "Checking"
+        case .notSignedIn: return "Not signed in"
+        case .unavailable: return "Unavailable"
+        case .syncing: return "Syncing"
+        case .upToDate: return "Up to date"
+        case .error: return "Error"
+        }
+    }
+
+    private var symbol: String {
+        switch status.state {
+        case .off, .checking: return "icloud.slash"
+        case .notSignedIn, .unavailable: return "icloud.slash"
+        case .syncing: return "arrow.triangle.2.circlepath.icloud"
+        case .upToDate: return "checkmark.icloud"
+        case .error: return "exclamationmark.icloud"
+        }
+    }
+
+    private var tint: Color {
+        switch status.state {
+        case .upToDate: return theme.isNight ? theme.accent : .green
+        case .error: return theme.destructive
+        case .notSignedIn, .unavailable: return theme.isNight ? theme.accent : .orange
+        default: return theme.isNight ? theme.accent : .accentColor
+        }
+    }
+}
+
+/// A sync or sharing problem in plain language, with the technical text behind a "Details" disclosure so testers
+/// can still copy it into a bug report.
+private struct SyncProblemView: View {
+    let problem: CloudSyncProblem
+    var onDismiss: (() -> Void)?
+
+    @Environment(\.appTheme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(problem.message)
+                .font(.footnote)
+                .foregroundStyle(theme.destructive)
+                .fixedSize(horizontal: false, vertical: true)
+            if !problem.technicalDetails.isEmpty {
+                DisclosureGroup("Details") {
+                    Text(problem.technicalDetails)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(theme.secondary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .font(.footnote)
+            }
+            if let onDismiss {
+                Button("Dismiss", action: onDismiss)
+                    .font(.footnote)
+                    .buttonStyle(.borderless)
+            }
         }
     }
 }

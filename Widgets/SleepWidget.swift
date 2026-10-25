@@ -9,7 +9,7 @@ struct SleepWidget: Widget {
             SleepWidgetView(entry: entry)
         }
         .configurationDisplayName("Sleep")
-        .description("How long your baby has been awake or asleep, with a Sleep / Wake up button.")
+        .description("How long your baby has been awake or asleep, the next nap window, and a Sleep / Wake up button.")
         .supportedFamilies([.systemSmall])
     }
 }
@@ -64,6 +64,14 @@ struct SleepWidgetView: View {
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
+                if let next = entry.nextSleep {
+                    Text(PredictionFormat.sleepLine(next))
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .padding(.top, 2)
+                }
             }
             .multilineTextAlignment(.leading)
 
@@ -76,7 +84,7 @@ struct SleepWidgetView: View {
                     tint: baby.isSleeping ? .orange : EventKind.sleep.color,
                     filled: true
                 )
-                .frame(height: 38)
+                .frame(height: entry.nextSleep == nil ? 38 : 34)
             }
             .buttonStyle(.plain)
         }

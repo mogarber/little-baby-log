@@ -9,7 +9,7 @@ struct FeedingWidget: Widget {
             FeedingWidgetView(entry: entry)
         }
         .configurationDisplayName("Feeding")
-        .description("Time since the last feed and the next side. Start nursing with one tap.")
+        .description("Time since the last feed, the next side, and roughly when the next feed is due. Start nursing with one tap.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
@@ -22,8 +22,8 @@ struct FeedingWidgetView: View {
         Group {
             if let baby = entry.baby {
                 switch family {
-                case .systemMedium: MediumFeeding(baby: baby)
-                default: SmallFeeding(baby: baby)
+                case .systemMedium: MediumFeeding(baby: baby, nextFeed: entry.nextFeed)
+                default: SmallFeeding(baby: baby, nextFeed: entry.nextFeed)
                 }
             } else {
                 EmptyWidgetView()
@@ -91,6 +91,7 @@ private struct FeedSummary: View {
 
 private struct SmallFeeding: View {
     let baby: WidgetSnapshot.BabySummary
+    let nextFeed: WidgetSnapshot.NextFeed?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -110,13 +111,31 @@ private struct SmallFeeding: View {
                     .font(.system(size: 11, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
             } else if let side = baby.nextSide {
-                Text("Next: \(side.title)")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 3)
-                    .background(Capsule().fill(side.color.opacity(0.2)))
-                    .foregroundStyle(side.color)
-                    .widgetAccentable()
+                // "Next: Right  ~4:30": the side, then roughly when.
+                HStack(spacing: 6) {
+                    Text("Next: \(side.title)")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(side.color.opacity(0.2)))
+                        .foregroundStyle(side.color)
+                        .widgetAccentable()
+                        .lineLimit(1)
+                        .layoutPriority(1)
+                    if let nextFeed {
+                        Text("~" + PredictionFormat.compactTime(nextFeed.centre))
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                }
+            } else if let nextFeed {
+                Text(PredictionFormat.feedLine(nextFeed))
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
@@ -128,6 +147,7 @@ private struct SmallFeeding: View {
 
 private struct MediumFeeding: View {
     let baby: WidgetSnapshot.BabySummary
+    let nextFeed: WidgetSnapshot.NextFeed?
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -143,6 +163,13 @@ private struct MediumFeeding: View {
                 Spacer(minLength: 4)
                 FeedSummary(baby: baby)
                 Spacer(minLength: 4)
+                if !baby.isNursing, let nextFeed {
+                    Text(PredictionFormat.feedLine(nextFeed))
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
                 if !baby.isNursing, let side = baby.nextSide {
                     Text("Next: \(side.title)")
                         .font(.system(size: 12, weight: .bold, design: .rounded))

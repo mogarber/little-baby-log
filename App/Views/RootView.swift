@@ -35,12 +35,23 @@ struct RootView: View {
             }
         }
         .onOpenURL { url in
-            guard let link = DeepLink(url: url) else { return }
-            if let id = link.babyID, babies.contains(where: { $0.uuid == id }) {
-                selectedBabyID = id.uuidString
-            }
-            pendingLink = link
+            if let link = DeepLink(url: url) { open(link) }
         }
+        // A tapped reminder notification asks for Today (see `ReminderResponder`). The link may have been parked
+        // before this view existed, so also look when it appears.
+        .onReceive(NotificationCenter.default.publisher(for: DeepLinkRouter.didReceiveLink)) { _ in
+            if let link = DeepLinkRouter.take() { open(link) }
+        }
+        .task {
+            if let link = DeepLinkRouter.take() { open(link) }
+        }
+    }
+
+    private func open(_ link: DeepLink) {
+        if let id = link.babyID, babies.contains(where: { $0.uuid == id }) {
+            selectedBabyID = id.uuidString
+        }
+        pendingLink = link
     }
 }
 

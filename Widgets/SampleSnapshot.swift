@@ -20,7 +20,9 @@ enum SampleSnapshot {
             lastDiaperAt: now.addingTimeInterval(-45 * 60),
             lastDiaperKind: .wet,
             lastSleepEndedAt: now.addingTimeInterval(-70 * 60),
-            today: .init(feeds: 5, diapers: 6, sleep: 9 * 3600 + 20 * 60)
+            today: .init(feeds: 5, diapers: 6, sleep: 9 * 3600 + 20 * 60),
+            nextSleep: .init(kind: .nap, start: now.addingTimeInterval(10 * 60), end: now.addingTimeInterval(40 * 60)),
+            nextFeed: .init(start: now.addingTimeInterval(20 * 60), end: now.addingTimeInterval(50 * 60))
         )
     }
 

@@ -12,6 +12,18 @@ struct BabyEntry: TimelineEntry {
 
     var babyID: UUID? { baby?.id }
 
+    /// The nap window or bedtime, unless it closed more than an hour before this entry's date. The widget can't
+    /// recompute anything, so a stale prediction disappears at its `expiresAt` through its own timeline entry.
+    var nextSleep: WidgetSnapshot.NextSleep? {
+        guard let prediction = baby?.nextSleep, prediction.expiresAt > date, !(baby?.isSleeping ?? false) else { return nil }
+        return prediction
+    }
+
+    var nextFeed: WidgetSnapshot.NextFeed? {
+        guard let prediction = baby?.nextFeed, prediction.expiresAt > date else { return nil }
+        return prediction
+    }
+
     /// Today's counts, or zeros when the snapshot is from an earlier day (the app hasn't run since midnight).
     var today: WidgetSnapshot.Today {
         guard let baby else { return .init() }
@@ -47,12 +59,20 @@ struct BabyTimelineProvider: AppIntentTimelineProvider {
     /// Battery: the policy is `.never`. Every time on screen updates itself (`Text(date, style: .relative)`,
     /// `Text(timerInterval:)`), and the app calls `reloadAllTimelines()` only when the snapshot really changed.
     /// The one extra entry is for midnight, when "today" counts roll over; it reuses the same data and costs
-    /// no wake-up.
+    /// no wake-up. Predictions work the same way: they are stored as absolute times, and one more entry is added
+    /// where each of them stops being worth showing.
     func timeline(for configuration: SelectBabyIntent, in context: Context) async -> Timeline<BabyEntry> {
         let first = load(configuration)
-        var entries = [first]
+        var changeDates: [Date] = []
         if let midnight = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: first.date)) {
-            entries.append(BabyEntry(date: midnight, baby: first.baby, volumeUnit: first.volumeUnit, generatedAt: first.generatedAt))
+            changeDates.append(midnight)
+        }
+        if let expiry = first.baby?.nextSleep?.expiresAt { changeDates.append(expiry) }
+        if let expiry = first.baby?.nextFeed?.expiresAt { changeDates.append(expiry) }
+
+        var entries = [first]
+        for date in Set(changeDates).sorted() where date > first.date {
+            entries.append(BabyEntry(date: date, baby: first.baby, volumeUnit: first.volumeUnit, generatedAt: first.generatedAt))
         }
         return Timeline(entries: entries, policy: .never)
     }

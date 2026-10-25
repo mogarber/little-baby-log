@@ -42,6 +42,10 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
         public var runningSleepStartedAt: Date?
         public var runningNursing: Nursing?
         public var today: Today
+        /// The next nap window or bedtime. Absent in snapshots written by older versions, and while asleep.
+        public var nextSleep: NextSleep?
+        /// When the next feed is likely. Absent in snapshots written by older versions.
+        public var nextFeed: NextFeed?
 
         public init(
             id: UUID,
@@ -53,7 +57,9 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
             lastSleepEndedAt: Date? = nil,
             runningSleepStartedAt: Date? = nil,
             runningNursing: Nursing? = nil,
-            today: Today = Today()
+            today: Today = Today(),
+            nextSleep: NextSleep? = nil,
+            nextFeed: NextFeed? = nil
         ) {
             self.id = id
             self.name = name
@@ -65,8 +71,51 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
             self.runningSleepStartedAt = runningSleepStartedAt
             self.runningNursing = runningNursing
             self.today = today
+            self.nextSleep = nextSleep
+            self.nextFeed = nextFeed
         }
     }
+
+    /// A sleep prediction as absolute times, so the widget can show it without any reloads.
+    public struct NextSleep: Codable, Equatable, Sendable {
+        public var kind: SleepPrediction.Kind
+        public var start: Date
+        public var end: Date
+
+        public init(kind: SleepPrediction.Kind, start: Date, end: Date) {
+            self.kind = kind
+            self.start = start
+            self.end = end
+        }
+
+        public init(_ prediction: SleepPrediction) {
+            self.init(kind: prediction.kind, start: prediction.window.start, end: prediction.window.end)
+        }
+
+        public var centre: Date { start.addingTimeInterval(end.timeIntervalSince(start) / 2) }
+
+        /// Widgets stop showing a prediction this long after its window closed (an hour of "overdue" at most).
+        public var expiresAt: Date { end.addingTimeInterval(WidgetSnapshot.predictionGrace) }
+    }
+
+    public struct NextFeed: Codable, Equatable, Sendable {
+        public var start: Date
+        public var end: Date
+
+        public init(start: Date, end: Date) {
+            self.start = start
+            self.end = end
+        }
+
+        public init(_ prediction: FeedPrediction) {
+            self.init(start: prediction.around.start, end: prediction.around.end)
+        }
+
+        public var centre: Date { start.addingTimeInterval(end.timeIntervalSince(start) / 2) }
+        public var expiresAt: Date { end.addingTimeInterval(WidgetSnapshot.predictionGrace) }
+    }
+
+    static let predictionGrace: TimeInterval = 60 * 60
 
     public struct Feed: Codable, Equatable, Sendable {
         public var startedAt: Date
@@ -222,6 +271,12 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
                 let events = (try? context.fetch(LogEvent.requestOverlapping(baby: baby, from: startOfDay))) ?? []
                 let day = DaySummary(events: events, interval: today, now: now)
                 summary.today = Today(feeds: day.feedCount, diapers: day.diaperCount, sleep: day.sleep)
+
+                // Predictions only change when the logs do, so they ride along in the snapshot. A sleep window
+                // counted from "now" (no wake-up logged) would shift on every rewrite, so it is left out.
+                let predictions = PredictionInputs.predictions(for: baby, in: context, now: now, calendar: calendar)
+                if let sleep = predictions.sleep, sleep.lastWake != nil { summary.nextSleep = NextSleep(sleep) }
+                if let feed = predictions.feed { summary.nextFeed = NextFeed(feed) }
 
                 summaries.append(summary)
             }

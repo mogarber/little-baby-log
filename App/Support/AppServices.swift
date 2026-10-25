@@ -5,7 +5,7 @@ import UIKit
 import BabyLogKit
 
 /// Wires the app's data to the outside world: after saves, remote (iCloud) changes, and preference changes it
-/// refreshes the widget snapshot and the Live Activities.
+/// refreshes the widget snapshot, the Live Activities, the reminders, and the iCloud sync status.
 @MainActor
 enum AppServices {
     private static var cancellables = Set<AnyCancellable>()
@@ -42,7 +42,12 @@ enum AppServices {
         // the CloudKit push wakes the app); starting waits for the foreground, see LiveActivityManager.
         saves
             .debounce(for: .milliseconds(300), scheduler: DispatchQueue.main)
-            .sink { _ in Task { await LiveActivityManager.shared.reconcile(.change) } }
+            .sink { _ in
+                Task {
+                    await LiveActivityManager.shared.reconcile(.change)
+                    await ReminderScheduler.shared.refresh()
+                }
+            }
             .store(in: &cancellables)
 
         // The remote-change notification can arrive before the view context has merged the new rows, so hop
@@ -53,6 +58,8 @@ enum AppServices {
                 Task { @MainActor in
                     await persistence.viewContext.perform {}
                     await LiveActivityManager.shared.reconcile(.change)
+                    // A feed logged on a partner's phone moves my "feed every N hours" reminder too.
+                    await ReminderScheduler.shared.refresh()
                 }
             }
             .store(in: &cancellables)
@@ -66,6 +73,8 @@ enum AppServices {
             .sink { _ in Task { await syncNow() } }
             .store(in: &cancellables)
 
+        CloudSyncStatus.shared.start(persistence: persistence)
+
         Task {
             #if DEBUG
             await DebugHooks.prepare()
@@ -78,11 +87,15 @@ enum AppServices {
     /// that were waiting for the foreground can start.
     static func sceneDidBecomeActive() async {
         await LiveActivityManager.shared.reconcile(.foreground)
+        // Notification permission or the clock may have changed while away.
+        await ReminderScheduler.shared.refresh()
+        CloudSyncStatus.shared.refreshAccount()
     }
 
-    /// Updates the snapshot, widget timelines, and Live Activities immediately.
+    /// Updates the snapshot, widget timelines, Live Activities, and reminders immediately.
     static func syncNow(_ trigger: LiveActivityManager.Trigger = .change) async {
         WidgetSnapshotWriter.shared.refresh()
         await LiveActivityManager.shared.reconcile(trigger)
+        await ReminderScheduler.shared.refresh()
     }
 }

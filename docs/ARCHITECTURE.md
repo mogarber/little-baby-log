@@ -621,6 +621,199 @@ All use `AppIntentConfiguration(intent: SelectBabyIntent.self)`, `containerBackg
 
 Previews: `#Preview(as: .systemSmall) { FeedingWidget() } timeline: { … }` with sample snapshot entries.
 
+## Predictions (free, on-device)
+
+Goal: Huckleberry's "SweetSpot", free and private. Everything runs on the phone from the baby's age and logs;
+nothing leaves the device. Always labeled as an estimate: "Estimates from typical ranges and your logs. Not
+medical advice."
+
+### BabyLogKit: `Predictions/` (pure, fully tested; no Core Data in the math)
+```swift
+public struct SleepSession: Equatable, Sendable { public var start: Date; public var end: Date? }   // end nil = running
+public struct FeedSample: Equatable, Sendable { public var start: Date; public var kind: EventKind }
+
+public enum PredictionBasis: Equatable, Sendable {
+    case typicalForAge          // not enough history yet
+    case blended(days: Int)     // age norms + this baby's last N days
+    case personal(days: Int)    // enough history that the baby's own pattern dominates
+}
+
+public struct AgeNorms: Sendable {             // table keyed by age; documented sources in comments
+    public static func wakeWindow(ageDays: Int) -> ClosedRange<TimeInterval>   // e.g. 0-4 wk 35-60 min ... 18-24 mo 5-6 h
+    public static func napsPerDay(ageDays: Int) -> ClosedRange<Int>
+    public static func feedInterval(ageDays: Int) -> ClosedRange<TimeInterval>  // newborn ~2-3 h, 2-4 mo ~3-4 h, ...
+}
+
+public struct SleepPrediction: Equatable, Sendable {
+    public enum Kind: Sendable { case nap, bedtime }
+    public var kind: Kind
+    public var window: DateInterval          // e.g. 2:10-2:40 PM
+    public var basis: PredictionBasis
+}
+public struct FeedPrediction: Equatable, Sendable {
+    public var around: DateInterval          // e.g. 4:15-4:45 PM
+    public var basis: PredictionBasis
+}
+
+public enum SleepPredictor {
+    /// nil while the baby is asleep (running sleep) or there is no wake time to anchor on (no sleep logged yet ->
+    /// anchor on now with typicalForAge, clearly labeled).
+    public static func next(birthDate: Date, sleeps: [SleepSession], now: Date, calendar: Calendar) -> SleepPrediction?
+}
+public enum FeedPredictor {
+    public static func next(birthDate: Date, feeds: [FeedSample], now: Date, calendar: Calendar) -> FeedPrediction?
+}
+// Core Data adapter: builds SleepSession/FeedSample arrays for a baby (last 14 days) from a context.
+public enum PredictionInputs { public static func load(for baby: Baby, in context: NSManagedObjectContext, now: Date) -> (sleeps: [SleepSession], feeds: [FeedSample]) }
+```
+Algorithm (keep it explainable):
+- **Wake windows**: from the last 14 days, each gap between a sleep's end and the next sleep's start, split
+  into daytime gaps by position (1st, 2nd, 3rd... of the day) and the last gap before night sleep. Drop gaps
+  outside 0.5x-2x of the age range (bad logs). Use the median per position.
+- **Blend**: `personal weight = min(1, samples / 10)`; window centre = weighted mix of personal median and age
+  midpoint; clamp the result to the age range widened by 25%. Window width +/-15 min (newborns +/-10 min).
+- **Nap vs bedtime**: bedtime when the predicted start is within 90 min of the baby's median night-sleep start
+  (last 7 days) or naps-today >= the age's max naps; then the window is centred on the median bedtime
+  (blended with the last-wake-window rule).
+- **Feeds**: median gap between feed starts (breastfeed + bottle) over the last 3 days, separately for day
+  (07-19) and night; blend with the age interval the same way; window +/-15 min.
+- Needs >= 3 samples before leaving `typicalForAge`; `personal` when weight == 1.
+
+**As built** (details beyond the spec; all in `Predictions/` and covered by `Predictions*Tests`):
+- Age tables are a conservative composite of commonly published ranges (not copied from one source), with the basis
+  in a comment on `AgeNorms`. `AgeNorms` also has `typicalBedtime`, `minimumNightSleep` and `ageDays`.
+- Cleaning (`SleepHistory`): sleeps closer than 15 min are merged (a brief waking), finished sleeps under 10 min
+  are ignored. A *night sleep* starts 17:30-05:30 (evening starts must last 3 h, 2 h under 4 months). Gaps between
+  night sleeps are night wakings, not wake windows. The morning wake is a night sleep ending 04:00-11:00.
+  All clock reads go through the caller's `Calendar`, so DST days stay on local time.
+- Outlier gaps still use up their position in the day, so one missed nap doesn't shift later positions. A position
+  with under 3 samples falls back to all daytime windows pooled.
+- Nap vs bedtime: "naps today >= cap" uses the baby's own median naps/day (from >= 3 recent days) before the age
+  maximum, so a 2-nap baby gets bedtime after nap 2. Bedtime centre = usual bedtime (>= 3 evenings in the last 7)
+  weighted 50% with the wake-window rule; a typical-for-age bedtime only weighs 25%.
+- No prediction while asleep or during a night waking. If the window closed over an hour ago the log is probably
+  missing a sleep: a nap is then counted from now (`lastWake == nil`, `typicalForAge`), a bedtime is dropped.
+  Windows that closed less than an hour ago stay and show "overdue". Feeds are dropped after the same hour.
+- `PredictionInputs` also exposes `fetchRequest` / `samples(from:now:)` (the Today card is a `@FetchRequest`, no
+  manual observing) and `predictions(for:in:now:)` (the widget snapshot).
+- `PredictionText` holds the disclaimer, the "how it works" paragraph, basis captions ("Based on Juniper's last 7
+  days" / "Typical for 7 weeks, tuned to Juniper's last 5 days" / "Typical for 7 weeks"), age labels and the
+  "in 25m" / "now" / "overdue" timing, so the app and tests share the wording.
+- Widgets: `nextSleep` is written only when it counts from a real wake-up (a window counted from "now" would change
+  on every rewrite). The widget timeline gets one extra entry where each stored window stops being shown (end + 1 h),
+  so stale windows disappear with no reload.
+- `App/Support/DebugSampleHistory.swift` (DEBUG only): `-lblSeedHistory [-lblSeedAgeDays N] [-lblSeedAsleep]`.
+
+### App
+- Today: an **"Up next"** card under Since-last: "Nap window 2:10-2:40 PM · in 25m" (or "Bedtime around
+  7:15 PM"), "Next feed around 4:30 PM", small basis caption ("Based on Juniper's last 7 days" / "Typical for
+  7 weeks"), and an info button with the disclaimer + a one-paragraph "how this works". Night-mode themed.
+- Widgets: `WidgetSnapshot.BabySummary` gains optional `nextSleep` (kind + window) and `nextFeed` (window),
+  computed at write time (absolute times, so no extra reloads). Sleep widget shows the nap window; Feeding widget
+  shows "Next feed ~4:30". Snapshot is already rewritten on every change; predictions only change then too.
+
+## Reminders (local notifications, per device)
+
+No server: everything is `UNUserNotificationCenter` on each phone. Each caregiver chooses their own reminders,
+stored per device (UserDefaults via a `Codable` settings blob, keyed by baby uuid), never synced.
+
+- **Feed every N hours** (per baby): interval 1h-6h in 15-min steps, measured from the start (default) or end of
+  the last feed; optional quiet hours. One pending request per baby (fixed identifier) replaced whenever feeds
+  change: after every save and every iCloud remote change (`AppServices` already has both hooks), so a feed
+  logged on a partner's phone moves my reminder too. If the next time is already past, schedule nothing until
+  the next feed. Body: "It's been 3h since Juniper's last feed (Right side). Next: Left".
+- **Daily reminders** (per baby, any number): time of day + label + kind (feed / medicine / custom), repeating
+  `UNCalendarNotificationTrigger`. E.g. "Vitamin D drops, 9:00 AM".
+- **Nap window reminder** (opt-in per baby, uses `SleepPredictor`): lead time 5 / 10 / 15 / 20 min (default 10),
+  "Juniper's nap window opens in 10 min (2:10 - 2:40 PM)", rescheduled like the feed reminder. Optional "Also remind
+  for bedtime" (default off). Details under "Implementation notes (Reminders)" > Nap window.
+- Notification actions: feed reminders get "Start Left" / "Start Right" / "Snooze 15 min" (handled in the app via
+  `WidgetActions`, no UI launch for start/snooze) and tapping opens Today. Category identifiers live in BabyLogKit.
+- Feed reminders use `.timeSensitive` interruption level (entitlement
+  `com.apple.developer.usernotifications.time-sensitive`, free) so they get through Focus / Sleep mode; daily
+  medicine reminders too; nap reminders `.active`. Ask for notification permission the first time a reminder
+  is turned on (not at launch).
+- Battery: local notifications cost nothing at rest; no polling. No BatteryImpactNote needed.
+
+### Implementation notes (Reminders)
+
+**BabyLogKit `Reminders/` (pure, tested in `RemindersPlannerTests` / `RemindersSettingsTests`).**
+- `ReminderSettings.swift`: `BabyReminderSettings { feedEvery: FeedIntervalReminder, daily: [DailyReminder] }`, all
+  `Codable` with forgiving decoding (every field defaults, unknown kinds fall back) so a later build can add the nap
+  reminder without losing saved data. `QuietHours` wraps `NightSchedule` (wraps midnight, start == end is empty).
+  `ReminderSettingsStore` keeps one JSON blob `[babyUUID: settings]` in `UserDefaults` (key `reminderSettings`).
+- `ReminderPlanner.plan(babies:now:calendar:) -> [ReminderRequest]`: plain values (identifier, title, body, category,
+  `ReminderUrgency` `.active | .timeSensitive`, `ReminderTrigger` `.date(Date) | .daily(hour:minute:)`, userInfo).
+  - Feed interval: due = start (or end) of the last feed + interval; if that falls in quiet hours it moves to the
+    end of the window; a due time that is already past (after the quiet-hours move) plans nothing, so a reminder
+    held back until 7:00 survives refreshes at 1:00. A running nursing timer anchors on its start; anchored on the
+    end there is nothing until it finishes. A bottle is an instant (end = start). Solids don't count.
+  - One-off requests are absolute dates (the app schedules a time-interval trigger, so DST and time-zone changes
+    can't shift them); daily ones are wall-clock calendar triggers (the system follows DST).
+  - Identifiers: `lbl.reminder.feed.<baby>`, `lbl.reminder.daily.<baby>.<reminder>`, `lbl.reminder.snooze.<baby>`.
+    **Adding a reminder type** (nap window): its settings in `BabyReminderSettings`, inputs on `ReminderBaby`, a
+    `...Request(for:now:calendar:)` helper, one line in `ReminderPlanner.requests(for:now:calendar:)`, an identifier.
+    `ReminderScheduler` needs no change (it replaces by identifier and removes whatever is no longer planned).
+  - `snooze(...)` builds the 15-minute copy (feed reminders reword their elapsed time); `isStale(userInfo:babies:)`
+    retires delivered / snoozed feed reminders once a newer feed is logged, the feed reminder is off, or the baby is gone.
+  - Category and action identifiers (`ReminderCategory`) live here rather than in `Shared/`: only the app uses them.
+- **Nap window (as built).** `NapWindowReminder { isEnabled = false, leadMinutes = 10, includeBedtime = false }` is
+  `BabyReminderSettings.napWindow` (forgiving decoding: an older blob, or a malformed `napWindow`, reads as off with
+  defaults); it counts in `hasAnythingEnabled`, so turning it on asks for notification permission. `ReminderBaby` gained
+  `birthDate` and `sleeps`, and the planner calls `SleepPredictor.next` itself (so the planner stays pure and the tests
+  use the real predictor); `ReminderInputs.load(in:settings:now:)` reads the sleeps only for babies with the reminder
+  on. `napWindowRequest` plans one request, identifier `lbl.reminder.nap.<baby>`, `.active`, no category (a tap opens
+  Today), `.date(window.start - lead)`, title "Nap window coming up" / "Bedtime coming up", body "Juniper's nap window
+  opens in 10 min (2:10 - 2:40 PM)" (`PredictionText.clockRange`, in the calendar's time zone and the locale's style).
+  Nothing is planned when: the baby is asleep or in a night waking (predictor returns nil, so starting a sleep removes
+  the pending request at the next refresh), the prediction has no `lastWake` (a window counted from "now" or after a
+  stale window would only slide away), the prediction is a bedtime and "Also remind for bedtime" is off (this is the
+  "never remind between bedtime and morning wake" rule: naps are never predicted that late, and bedtime is opt-in),
+  or `window.start - lead` is not after now (including a window closer than the lead, an open window, or an overdue
+  one). The text says "in N min" from the lead, not from the time of planning, so a refresh doesn't rewrite it.
+  Same refresh triggers as feed reminders; no scheduler change. The settings screen has a "Naps" section (toggle, "Remind
+  me N min before", "Also remind for bedtime"); DEBUG builds add a 1-minute lead. DEBUG seed option
+  `-lblSeedWindowInMinutes N` (with `-lblSeedHistory`) places today's last wake-up so the next window opens N minutes from now.
+  Not done: a delivered nap reminder isn't retired when a sleep starts (only pending ones are removed).
+- `ReminderInputs.load(in:settings:)` is the Core Data adapter (latest breastfeed/bottle per baby; ignores the
+  empty nursing placeholder the timer screen creates).
+
+**App.**
+- `ReminderScheduler` (`App/Support`, `@MainActor`): reads inputs on its own background context, plans, then diffs
+  against `pendingNotificationRequests()`: removes unplanned `lbl.reminder.*` requests, adds only requests that
+  differ (content, interruption level, trigger), clears delivered notifications that are stale. Serialized and
+  coalesced (a call during a run makes it run once more). Skips scheduling unless notifications are authorized.
+  `AppServices` calls `refresh()` after saves, remote changes, `syncNow` (launch, background, intents), and on becoming
+  active; the settings screen calls it after each edit. Permission is requested the first time something is turned
+  on (`requestPermissionIfNeeded`).
+- Notification actions: `AppDelegate` is the `UNUserNotificationCenterDelegate` (set in `didFinishLaunching`, so a
+  cold launch from a tap isn't lost; also shows banners while the app is open). `ReminderResponder` handles them:
+  Start Left / Start Right use `WidgetActions.nursing` on the app's store (an already-running side is left alone,
+  not paused), save, run `AppServices.syncNow(.intent)` and hold a short background task so CloudKit can export;
+  Snooze schedules the snooze request; a tap parks `DeepLink.today` in `DeepLinkRouter`, which `RootView` consumes
+  (also when the link was produced before the view existed).
+- `RemindersSettingsView` (Settings > Reminders): per baby, "Remind me to feed" (every N, counting from start / end,
+  quiet hours), "Nap window reminder" (lead time, bedtime sub-toggle) and the daily list (add / edit sheet, enable toggle, swipe to delete). A denied permission shows how to
+  turn it on with an "Open iOS Settings" button. DEBUG builds add a 1-minute interval. Night themed.
+- Entitlement `com.apple.developer.usernotifications.time-sensitive` is in both app entitlement files (not the widget).
+- DEBUG launch arguments (`DebugHooks`): `-lblTestFeedReminder <seconds>`, `-lblTestDailyReminder <minutes>`,
+  `-lblClearReminders`; `ReminderScheduler.logPending` logs every pending / delivered reminder
+  (`xcrun simctl spawn booted log stream --predicate 'category == "reminders"'`).
+
+## iCloud sync status and friendlier errors
+
+- `CloudSyncProblem.classify(_:)` (BabyLogKit `Sync/`, tested): walks the whole error chain (Core Data's "mirroring
+  delegate" wrapper, underlying and partial errors) for the most actionable CloudKit / URL cause and returns a kind
+  (`notSignedIn`, `restricted`, `offline`, `storageFull`, `busy`, `syncOff`, `other`), a plain-language `message`
+  ("Sign in to iCloud in Settings to share.", "You're offline...", "iCloud sync isn't working right now.") and the
+  raw `technicalDetails` text.
+- `CaregiverRow` shows the message inline with a "Details" disclosure (selectable monospaced text) and Dismiss;
+  with no iCloud account it answers at once instead of waiting for CloudKit to fail.
+- `CloudSyncStatus` (`App/Support`, `@Observable`, started from `AppServices`): the "iCloud sync" row in Settings
+  (Syncing / Up to date / Not signed in / Unavailable / Error / Off in this build). Event driven:
+  `NSPersistentCloudKitContainer.eventChangedNotification` (in-flight set, last success, one error per event type) and
+  `CKContainer.accountStatus()` read at launch, when the app becomes active, and on `.CKAccountChanged`. No polling.
+
 ## Building
 
 ```
@@ -637,5 +830,5 @@ to Production in the CloudKit Console.
 Package tests: `cd Packages/BabyLogKit && ./test.sh`.
 
 ## Later (not v1)
-Control Center controls (iOS 18), reminders ("feed due"), Apple Watch, Siri/App Intents,
-localization, sleep-window predictions, photo per baby, iPad layout polish.
+Control Center controls (iOS 18), Apple Watch, Siri/App Intents,
+localization, photo per baby, iPad layout polish.

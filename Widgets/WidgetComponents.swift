@@ -175,6 +175,28 @@ extension WidgetSnapshot.BabySummary {
     var isSleeping: Bool { runningSleepStartedAt != nil }
 }
 
+/// Predictions are shown as absolute clock times (the snapshot stores them that way), so they never need a
+/// timeline reload to stay right.
+enum PredictionFormat {
+    /// "Nap 2:10 – 2:40 PM" / "Bedtime ~7:15 PM".
+    static func sleepLine(_ next: WidgetSnapshot.NextSleep) -> String {
+        switch next.kind {
+        case .nap: return "Nap " + (next.start..<next.end).formatted(.interval.hour().minute())
+        case .bedtime: return "Bedtime ~" + next.centre.formatted(date: .omitted, time: .shortened)
+        }
+    }
+
+    /// "4:30" (no AM/PM, to fit a small widget; 24-hour locales show "16:30").
+    static func compactTime(_ date: Date) -> String {
+        date.formatted(.dateTime.hour(.defaultDigits(amPM: .omitted)).minute())
+    }
+
+    /// "Next feed ~4:30".
+    static func feedLine(_ next: WidgetSnapshot.NextFeed) -> String {
+        "Next feed ~" + compactTime(next.centre)
+    }
+}
+
 /// Shown when the app hasn't written a snapshot yet (no baby added, or never opened).
 struct EmptyWidgetView: View {
     var body: some View {

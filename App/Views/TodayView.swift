@@ -62,6 +62,8 @@ struct TodayView: View {
             }
             .themedSection()
 
+            UpNextView(baby: baby)
+
             Section {
                 QuickActionsGrid(
                     isSleeping: runningSleep != nil,

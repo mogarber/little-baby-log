@@ -26,8 +26,10 @@ Baby trackers shouldn't cost a monthly subscription, and they shouldn't know eve
 - **History** grouped by day, with filters and edits
 - **Trends** charts over 7, 14, or 30 days
 - **Night mode** for 3 a.m. feeds: a dim, warm, true-black theme (no white), on all the time or on a schedule (7 PM to 7 AM by default), with an optional lower screen brightness
+- **Sleep and feed predictions**: an "Up next" card with the next nap window, bedtime, and feed, worked out on your phone from your baby's age and logs (no account, no cloud), with a note saying what each estimate is based on
 - **Easy on the battery**: anything that costs battery, like keeping the screen on during the nursing timer, is opt-in and says so
 - **Widgets and Live Activities**: Home Screen and Lock Screen widgets with one-tap buttons (start nursing on the next side, sleep or wake up, log a diaper), plus Lock Screen and Dynamic Island timers for running sleep and nursing
+- **Reminders** on each phone: "feed every 3 hours" (counted from the start or end of the last feed, with optional quiet hours) that moves whenever a feed is logged, an opt-in nap window reminder ("Juniper's nap window opens in 10 min", 5 to 20 minutes ahead, from the on-device sleep estimate; bedtime optional), plus daily reminders for things like vitamin D drops. Feed reminders have Start Left, Start Right, and Snooze buttons, and feed and medicine reminders are Time Sensitive so they get through Focus
 - **Caregiver sharing via iCloud**: invite a partner or grandparent and timers sync live
 - **CSV export** of all your data
 - **Multiple babies**
@@ -89,11 +91,9 @@ Issues and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING
 
 Ideas for after v1:
 
-- Reminders ("feed due")
 - Apple Watch app
 - Siri and App Intents
 - Localization
-- Sleep-window predictions
 - A photo for each baby
 - iPad layout polish
 
