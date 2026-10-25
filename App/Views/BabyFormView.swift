@@ -26,6 +26,10 @@ struct BabyFormView: View {
         Calendar.current.date(byAdding: .year, value: 1, to: .now) ?? .now
     }
 
+    private var trimmedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private var canDelete: Bool {
         guard let baby else { return false }
         return !persistence.isInSharedStore(baby)
@@ -64,6 +68,7 @@ struct BabyFormView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { save() }
                         .fontWeight(.semibold)
+                        .disabled(trimmedName.isEmpty)
                 }
             }
             .confirmationDialog(
@@ -80,7 +85,8 @@ struct BabyFormView: View {
     }
 
     private func save() {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = trimmedName
+        guard !trimmed.isEmpty else { return }
         let saved: Baby
         if let baby {
             baby.name = trimmed

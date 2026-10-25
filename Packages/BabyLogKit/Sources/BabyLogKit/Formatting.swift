@@ -13,6 +13,17 @@ public enum DurationFormat {
         return interval > 0 ? "<1m" : "0m"
     }
 
+    /// Compact with seconds for short spans: "45s", "1m 10s", "5m", "12m", "1h 5m". Never rounds a non-zero span down to zero.
+    public static func compact(_ interval: TimeInterval) -> String {
+        let total = max(0, Int(interval.rounded(.down)))
+        if total < 60 { return "\(interval > 0 ? max(1, total) : 0)s" }
+        if total < 600 {
+            let seconds = total % 60
+            return seconds == 0 ? "\(total / 60)m" : "\(total / 60)m \(seconds)s"
+        }
+        return short(interval)
+    }
+
     /// "5:09", "1:05:09"
     public static func clock(_ interval: TimeInterval) -> String {
         let total = Int(max(0, interval).rounded(.down))
@@ -87,7 +98,7 @@ public struct EventDescriber {
             var parts: [String] = []
             for side in BreastSide.allCases {
                 let seconds = event.breastSeconds(side, at: now)
-                if seconds > 0 { parts.append("\(side.shortLabel) \(DurationFormat.short(seconds))") }
+                if seconds > 0 { parts.append("\(side.shortLabel) \(DurationFormat.compact(seconds))") }
             }
             if parts.isEmpty { return event.isRunning ? "Timer running" : "" }
             return parts.joined(separator: " · ")

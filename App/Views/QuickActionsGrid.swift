@@ -38,17 +38,17 @@ struct QuickActionsGrid: View {
                 Button {
                     onQuickDiaper(.wet)
                 } label: {
-                    Label("Wet", systemImage: "drop")
+                    Label("Wet", systemImage: DiaperKind.wet.symbolName)
                 }
                 Button {
                     onQuickDiaper(.dirty)
                 } label: {
-                    Label("Dirty", systemImage: "circle.fill")
+                    Label("Dirty", systemImage: DiaperKind.dirty.symbolName)
                 }
                 Button {
                     onQuickDiaper(.mixed)
                 } label: {
-                    Label("Wet + dirty", systemImage: "drop.fill")
+                    Label("Wet + dirty", systemImage: DiaperKind.mixed.symbolName)
                 }
             }
         } label: {

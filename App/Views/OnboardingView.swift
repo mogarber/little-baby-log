@@ -12,6 +12,10 @@ struct OnboardingView: View {
         Calendar.current.date(byAdding: .year, value: 1, to: .now) ?? .now
     }
 
+    private var trimmedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 28) {
@@ -52,7 +56,7 @@ struct OnboardingView: View {
 
                 Button {
                     Haptics.success()
-                    onCreate(name.trimmingCharacters(in: .whitespacesAndNewlines), birthDate)
+                    onCreate(trimmedName, birthDate)
                 } label: {
                     Text("Start tracking")
                         .font(.title3.weight(.semibold))
@@ -61,6 +65,7 @@ struct OnboardingView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
+                .disabled(trimmedName.isEmpty)
 
                 Text("Already invited by another caregiver? Open their invitation on this phone and your baby will appear here once iCloud syncs.")
                     .font(.footnote)

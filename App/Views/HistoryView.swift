@@ -151,6 +151,7 @@ struct HistoryView: View {
 private struct DayHeader: View {
     let day: Date
     let events: [LogEvent]
+    @AppStorage(Prefs.volumeUnit) private var volumeUnit: VolumeUnit = Prefs.defaultVolumeUnit
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -184,6 +185,9 @@ private struct DayHeader: View {
         }
         if summary.diaperCount > 0 {
             parts.append(summary.diaperCount == 1 ? "1 diaper" : "\(summary.diaperCount) diapers")
+        }
+        if summary.pumpML > 0 {
+            parts.append(volumeUnit.format(milliliters: summary.pumpML) + " pumped")
         }
         return parts.isEmpty ? "No sleep, feeds or diapers" : parts.joined(separator: " · ")
     }

@@ -89,6 +89,14 @@ public enum DiaperKind: String, CaseIterable, Identifiable, Sendable {
         case .dry: return "Dry"
         }
     }
+    public var symbolName: String {
+        switch self {
+        case .wet: return "drop.fill"
+        case .dirty: return "allergens.fill"
+        case .mixed: return "drop.halffull"
+        case .dry: return "sun.max.fill"
+        }
+    }
     public var isWet: Bool { self == .wet || self == .mixed }
     public var isDirty: Bool { self == .dirty || self == .mixed }
 }

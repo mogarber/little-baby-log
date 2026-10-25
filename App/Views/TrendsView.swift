@@ -141,7 +141,7 @@ private struct TrendsContent: View {
             title: "Sleep",
             subtitle: avg > 0 ? "Average " + DurationFormat.short(avg * 3600) + " a day" : "No complete days yet"
         ) {
-            DayBarChart(stats: stats, days: days, color: EventKind.sleep.color, average: avg, unit: "h") { $0.sleep / 3600 }
+            DayBarChart(stats: stats, days: days, color: EventKind.sleep.color, average: avg, unit: "h", minTop: 1) { $0.sleep / 3600 }
         }
     }
 
@@ -151,7 +151,7 @@ private struct TrendsContent: View {
             title: "Feeds",
             subtitle: avg > 0 ? "Average " + perDay(avg) : "No complete days yet"
         ) {
-            DayBarChart(stats: stats, days: days, color: EventKind.breastfeed.color, average: avg, unit: "") { Double($0.feedCount) }
+            DayBarChart(stats: stats, days: days, color: EventKind.breastfeed.color, average: avg, unit: "", minTop: 4) { Double($0.feedCount) }
         }
     }
 
@@ -164,6 +164,7 @@ private struct TrendsContent: View {
                 DiaperPoint(day: stat.day, label: "Both", count: stat.summary.diapers[.mixed] ?? 0)
             ]
         }
+        let busiestDay = stats.map { Double($0.summary.diaperCount) }.max() ?? 0
         return TrendCard(
             title: "Diapers",
             subtitle: avg > 0 ? "Average " + perDay(avg) : "No complete days yet"
@@ -180,6 +181,7 @@ private struct TrendsContent: View {
                 range: [Color.teal, Color.brown, Color.orange]
             )
             .chartLegend(position: .bottom, alignment: .leading)
+            .modifier(WholeNumberYAxis(scale: YAxisScale(maxValue: busiestDay, minTop: 4)))
             .modifier(DayAxis(days: days))
             .frame(height: 180)
         }
@@ -194,7 +196,7 @@ private struct TrendsContent: View {
                 ? "Average " + avg.formatted(.number.precision(.fractionLength(0...1))) + " " + unit.symbol + " a day"
                 : (stats.contains { $0.summary.bottleML > 0 } ? "No complete days yet" : "No bottles in this range")
         ) {
-            DayBarChart(stats: stats, days: days, color: EventKind.bottle.color, average: avg, unit: unit.symbol) {
+            DayBarChart(stats: stats, days: days, color: EventKind.bottle.color, average: avg, unit: unit.symbol, minTop: 1) {
                 unit.value(fromMilliliters: $0.bottleML)
             }
         }
@@ -267,9 +269,12 @@ private struct DayBarChart: View {
     let color: Color
     let average: Double
     let unit: String
+    /// Smallest top of the value axis, so a nearly empty chart still gets a sane scale.
+    let minTop: Double
     let value: (DaySummary) -> Double
 
     var body: some View {
+        let peak = stats.map { value($0.summary) }.max() ?? 0
         Chart {
             ForEach(stats) { stat in
                 BarMark(
@@ -285,8 +290,39 @@ private struct DayBarChart: View {
             }
         }
         .chartYAxisLabel(unit)
+        .modifier(WholeNumberYAxis(scale: YAxisScale(maxValue: max(peak, average), minTop: minTop)))
         .modifier(DayAxis(days: days))
         .frame(height: 160)
+    }
+}
+
+/// A value axis from 0 with whole-number ticks: a round step and a top that is a multiple of it.
+private struct YAxisScale {
+    let top: Double
+    let step: Double
+
+    init(maxValue: Double, minTop: Double) {
+        let wanted = max(minTop, maxValue.rounded(.up), 1)
+        let raw = wanted / 4
+        let magnitude = pow(10, floor(log10(raw)))
+        let step = [1.0, 2, 4, 5, 10].map { $0 * magnitude }.first { $0 >= raw } ?? 10 * magnitude
+        self.step = step
+        self.top = (wanted / step).rounded(.up) * step
+    }
+}
+
+private struct WholeNumberYAxis: ViewModifier {
+    let scale: YAxisScale
+
+    func body(content: Content) -> some View {
+        content
+            .chartYScale(domain: 0...scale.top)
+            .chartYAxis {
+                AxisMarks(values: .stride(by: scale.step)) { _ in
+                    AxisGridLine()
+                    AxisValueLabel(format: FloatingPointFormatStyle<Double>().precision(.fractionLength(0)))
+                }
+            }
     }
 }
 

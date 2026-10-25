@@ -13,6 +13,20 @@ struct DurationFormatTests {
         #expect(DurationFormat.short(3599) == "59m")
     }
 
+    @Test func compactFormat() {
+        #expect(DurationFormat.compact(0) == "0s")
+        #expect(DurationFormat.compact(-3) == "0s")
+        #expect(DurationFormat.compact(0.4) == "1s")
+        #expect(DurationFormat.compact(45) == "45s")
+        #expect(DurationFormat.compact(59.9) == "59s")
+        #expect(DurationFormat.compact(60) == "1m")
+        #expect(DurationFormat.compact(70) == "1m 10s")
+        #expect(DurationFormat.compact(599) == "9m 59s")
+        #expect(DurationFormat.compact(600) == "10m")
+        #expect(DurationFormat.compact(725) == "12m")
+        #expect(DurationFormat.compact(3900) == "1h 5m")
+    }
+
     @Test func clockFormat() {
         #expect(DurationFormat.clock(309) == "5:09")
         #expect(DurationFormat.clock(3909) == "1:05:09")
@@ -73,6 +87,10 @@ struct EventDescriberTests {
         let nurse = LogEvent.create(kind: .breastfeed, for: baby, start: now, in: ctx)
         nurse.leftSeconds = 480; nurse.rightSeconds = 360; nurse.endDate = now
         #expect(describer.summary(for: nurse, now: now) == "L 8m · R 6m")
+        nurse.leftSeconds = 45; nurse.rightSeconds = 70
+        #expect(describer.summary(for: nurse, now: now) == "L 45s · R 1m 10s")
+        nurse.leftSeconds = 0; nurse.rightSeconds = 30
+        #expect(describer.summary(for: nurse, now: now) == "R 30s")
 
         let bottle = LogEvent.create(kind: .bottle, for: baby, start: now, in: ctx)
         bottle.amountML = 120; bottle.bottleContent = .formula
