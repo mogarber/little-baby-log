@@ -1,0 +1,17 @@
+// Copy this file to Config/Local.xcconfig (git-ignored) and edit.
+// Requires a paid Apple Developer Program membership for iCloud/CloudKit.
+// Then run `xcodegen generate` and rebuild.
+
+// Your 10-character Apple Developer Team ID (developer.apple.com > Membership).
+DEVELOPMENT_TEAM = ABCDE12345
+
+// A reverse-DNS prefix you own. The app bundle id becomes $(BUNDLE_ID_PREFIX).littlebabylog,
+// which must be unique across the App Store, so don't use org.littlebabylog.
+BUNDLE_ID_PREFIX = com.yourname
+
+// The CloudKit container. Xcode can register it for you under
+// Signing & Capabilities > iCloud, or create it at developer.apple.com.
+CLOUDKIT_CONTAINER = iCloud.$(BUNDLE_ID_PREFIX).littlebabylog
+
+// Turns on the iCloud + push entitlements.
+CODE_SIGN_ENTITLEMENTS = Config/LittleBabyLog.entitlements

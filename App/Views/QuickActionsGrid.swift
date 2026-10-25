@@ -1,0 +1,75 @@
+import SwiftUI
+import BabyLogKit
+
+/// Big one-tap tiles for every kind of entry.
+struct QuickActionsGrid: View {
+    let isSleeping: Bool
+    let onTap: (EventKind) -> Void
+    let onLogPast: (EventKind) -> Void
+    let onQuickDiaper: (DiaperKind) -> Void
+
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 4)
+
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: 14) {
+            ForEach(EventKind.allCases) { kind in
+                tile(for: kind)
+            }
+        }
+    }
+
+    private func title(for kind: EventKind) -> String {
+        if kind == .sleep && isSleeping { return "Wake up" }
+        return kind.title
+    }
+
+    private func tile(for kind: EventKind) -> some View {
+        Button {
+            onTap(kind)
+        } label: {
+            VStack(spacing: 6) {
+                KindIcon(kind: kind, size: 58)
+                Text(title(for: kind))
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity, minHeight: 88)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .contextMenu {
+            Button {
+                onLogPast(kind)
+            } label: {
+                Label("Log past \(kind.title.lowercased())", systemImage: "clock.arrow.circlepath")
+            }
+            if kind == .diaper {
+                Divider()
+                Button {
+                    onQuickDiaper(.wet)
+                } label: {
+                    Label("Wet", systemImage: "drop")
+                }
+                Button {
+                    onQuickDiaper(.dirty)
+                } label: {
+                    Label("Dirty", systemImage: "circle.fill")
+                }
+                Button {
+                    onQuickDiaper(.mixed)
+                } label: {
+                    Label("Wet + dirty", systemImage: "drop.fill")
+                }
+            }
+        }
+        .accessibilityLabel(title(for: kind))
+    }
+}
+
+#Preview {
+    List {
+        QuickActionsGrid(isSleeping: false, onTap: { _ in }, onLogPast: { _ in }, onQuickDiaper: { _ in })
+    }
+}
