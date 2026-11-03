@@ -85,6 +85,15 @@ struct TodayView: View {
             .themedSection()
 
             Section {
+                NavigationLink {
+                    DayRecapView(baby: baby, day: day)
+                } label: {
+                    Label("Today's recap", systemImage: "clock.arrow.circlepath")
+                }
+            }
+            .themedSection()
+
+            Section {
                 if timeline.isEmpty {
                     Text("Nothing logged yet today.")
                         .foregroundStyle(theme.secondary)

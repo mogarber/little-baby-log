@@ -8,6 +8,8 @@ enum Prefs {
     static let selectedBabyID = "selectedBabyID"
     static let volumeUnit = "volumeUnit"
     static let unitSystem = "unitSystem"
+    /// `HistoryMode` raw value: the History tab shows the daily recap or the full list.
+    static let historyMode = "historyMode"
 
     /// `AppearanceMode` raw value.
     static let appearanceMode = "appearanceMode"

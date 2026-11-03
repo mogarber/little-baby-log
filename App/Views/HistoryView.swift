@@ -2,7 +2,52 @@ import SwiftUI
 import CoreData
 import BabyLogKit
 
+/// How the History tab shows the log: the hour-by-hour recap of a day, or the full list.
+enum HistoryMode: String, CaseIterable, Identifiable {
+    case recap, list
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .recap: return "Recap"
+        case .list: return "List"
+        }
+    }
+}
+
+/// The History tab: a "Recap | List" switch (remembered) over the daily recap or the list of every entry.
 struct HistoryView: View {
+    let baby: Baby
+
+    @AppStorage(Prefs.historyMode) private var mode: HistoryMode = .recap
+
+    var body: some View {
+        Group {
+            switch mode {
+            case .recap:
+                DayRecapView(baby: baby, embedded: true)
+            case .list:
+                HistoryListView(baby: baby)
+            }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            Picker("Show", selection: $mode) {
+                ForEach(HistoryMode.allCases) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+        }
+        .navigationTitle("History")
+        .navigationBarTitleDisplayMode(mode == .recap ? .inline : .large)
+    }
+}
+
+/// Every entry, grouped by day, newest first.
+private struct HistoryListView: View {
     let baby: Baby
 
     @FetchRequest private var events: FetchedResults<LogEvent>
@@ -79,7 +124,6 @@ struct HistoryView: View {
             }
         }
         .themedList()
-        .navigationTitle("History")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 filterMenu

@@ -23,6 +23,7 @@ Baby trackers shouldn't cost a monthly subscription, and they shouldn't know eve
 - **Growth**: weight, length, and head circumference
 - **Medicine** log with name and dose
 - **Today dashboard**: time since last feed, sleep, and diaper, plus a daily summary
+- **Daily recap**: everything that happened on a day, hour by hour, with a sleep bar that shows naps at a glance, a summary strip, and a share button that sends it as plain text (handy when handing the baby back from a nanny)
 - **History** grouped by day, with filters and edits
 - **Trends** charts over 7, 14, or 30 days
 - **Night mode** for 3 a.m. feeds: a dim, warm, true-black theme (no white), on all the time or on a schedule (7 PM to 7 AM by default), with an optional lower screen brightness

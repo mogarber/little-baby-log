@@ -333,7 +333,7 @@ Info.plist has `CKSharingSupported = YES`, `UIBackgroundModes = [remote-notifica
   minutes, L/R amounts); growth (weight — imperial = lb + oz fields — length, head); medicine (name, dose). Notes for
   all. Edit mode adds Delete with confirmation. Numeric input uses a `NumberField` backed by a String `@State` parsed
   with the current locale (TextField(value:format:) only commits on return, and decimal pads have no return key).
-- `HistoryView(baby:)`: all events grouped by day, newest first; section header = date + mini summary
+- `HistoryView(baby:)`: a "Recap | List" switch over `DayRecapView` and the list described next (see "Daily hourly recap"). The list: all events grouped by day, newest first; section header = date + mini summary
   ("Sleep 13h 20m · 8 feeds · 7 diapers", overnight sleep counted using the previous day's events too); kind filter
   menu; "+" menu to log a past entry of any kind; tap to edit; swipe to delete.
 - `TrendsView(baby:)`: 7 / 14 / 30 day segmented picker; Swift Charts cards: sleep hours per day, feeds per day,
@@ -403,6 +403,38 @@ force it.
   of iOS 26. iOS also restores the system brightness itself when the app goes away. (The simulator ignores brightness
   writes, so this is verified there only by the state machine, not by pixels.)
 - Widgets and Live Activities follow the system appearance, not this setting.
+
+## Daily hourly recap
+
+When a nanny hands the baby back, a parent wants everything that happened that day, hour by hour. The History tab opens
+on it ("Recap | List", remembered in `Prefs.historyMode`, default Recap) and Today links to it ("Today's recap", right
+after the Today summary). No schema change; it only reads events.
+
+**Logic (BabyLogKit, `Recap/DayRecap.swift`, tested in `DayRecapTests`).** Pure and clock-free:
+`DayRecap(day:events:calendar:now:)`.
+- `summary` (a `DaySummary`) and `napCount`. A nap is a sleep that starts after 5:30 AM and either before 5:30 PM, or
+  before 7 PM and shorter than three hours (age-independent, so no birthday is needed).
+- `hours`: one `Hour` per real clock hour, walked with the calendar (`date(byAdding: .hour)`), so a DST day has 23 or 25
+  and the repeated hour is two buckets (`isRepeated`). Each holds the events that START in `[start, end)` (9:00:00 is in
+  9 AM), sorted by time, then kind. `wakeUps` are sleeps that began in an earlier hour and ended in this one.
+- `sleepSpans`: sleeps clipped to the day (an overnight sleep shows on both days; a running one ends at `now`), and per
+  hour `sleepSlices` as 0...1 fractions with `startsHere` / `endsHere` flags for rounded ends.
+- Today: `isToday`, `currentHourIndex`, `isFuture(_:)`, `visibleHours`.
+- `rows`: what to draw. An hour with entries, and the current hour, is its own row; consecutive empty hours with the same
+  sleep state collapse into a `QuietRun` ("1 AM - 5 AM"; `isAsleep` when a sleep bar passes through it).
+- `plainText(babyName:describer:calendar:locale:)`: the summary plus one line per entry, for sharing.
+- `LogEvent.requestDay(baby:interval:)`: events touching a day, including running timers, oldest first.
+
+**App (`App/Views/DayRecapView.swift`).** A header (previous / next, tap the date for a graphical picker; Next is
+disabled on today), a summary strip, then one card with the timeline: hour labels on the left, a track whose thick bar
+is the sleep (rows have no spacing, so it runs unbroken across hours), compact entries on the right (`KindIcon`, time,
+kind and the `EventDescriber` summary), tap to open `EventEditorView` (a running nursing timer opens the timer). Today
+draws a "Now" line and lists no future hours; the sleep bar in the current hour is scaled to end at that line. Colors
+come from `\.appTheme`, so it follows Light, Dark and Night. A `ShareLink` in the toolbar shares the plain text; the
+text is only built, not sent, until the person picks a destination.
+
+**Battery.** Past days draw once with no timer. Today alone has a `TimelineView(.everyMinute)` (it moves the "now" line
+and grows a running sleep); it pauses when the app is not on screen, and there is no background work.
 
 ## Battery opt-ins
 
